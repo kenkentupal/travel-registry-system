@@ -1,7 +1,6 @@
-const supabase = require("../supabase/supabaseClient");
+import { supabase } from "../supabase/supabaseClient.js"; // <-- wrong here
 
-// GET /vehicles
-exports.getVehicles = async (req, res) => {
+export const getVehicles = async (req, res) => {
   const { data, error } = await supabase
     .from("vehicles")
     .select("org")

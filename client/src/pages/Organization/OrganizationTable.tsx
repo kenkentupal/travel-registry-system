@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../supabaseClient";
 
 interface Organization {
   id: string;
@@ -9,64 +8,84 @@ interface Organization {
   created_at: string;
 }
 
+const VITE_API_URL = import.meta.env.VITE_API_URL;
+
 export default function OrganizationTable() {
   const [orgs, setOrgs] = useState<Organization[]>([]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // For editing
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
   useEffect(() => {
     fetchOrganizations();
   }, []);
 
   const fetchOrganizations = async () => {
-    const { data, error } = await supabase
-      .from("organizations")
-      .select("id, name, description, created_by, created_at")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching organizations:", error.message);
+    const res = await fetch(`${VITE_API_URL}/api/organizations`);
+    if (res.ok) {
+      const data = await res.json();
+      setOrgs(data);
     } else {
-      setOrgs(data || []);
+      console.error("Error fetching organizations");
     }
     setLoading(false);
   };
 
   const handleCreateOrganization = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const userId = "current_user_id_here"; // replace this properly
 
-    if (!user) {
-      alert("You must be signed in to create an organization.");
-      return;
-    }
+    const res = await fetch(`${VITE_API_URL}/api/organizations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, description, userId }),
+    });
 
-    const { error } = await supabase.from("organizations").insert([
-      {
-        name: name.trim(),
-        description: description.trim(),
-        created_by: user.id, // 👈 MUST be set!
-      },
-    ]);
-
-    if (!error) {
+    if (res.ok) {
       setName("");
       setDescription("");
       fetchOrganizations();
     } else {
-      alert("Error creating organization: " + error.message);
+      const error = await res.json();
+      alert("Error creating organization: " + error.error);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    const { error } = await supabase
-      .from("organizations")
-      .delete()
-      .eq("id", id);
-    if (!error) fetchOrganizations();
-    else alert("Error deleting: " + error.message);
+  // Start editing: fill edit fields and set editId
+  const startEditing = (org: Organization) => {
+    setEditId(org.id);
+    setEditName(org.name);
+    setEditDescription(org.description || "");
+  };
+
+  // Cancel editing
+  const cancelEditing = () => {
+    setEditId(null);
+    setEditName("");
+    setEditDescription("");
+  };
+
+  // Save edited org
+  const saveEdit = async () => {
+    if (!editId) return;
+
+    const res = await fetch(`${VITE_API_URL}/api/organizations/${editId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editName, description: editDescription }),
+    });
+
+    if (res.ok) {
+      cancelEditing();
+      fetchOrganizations();
+    } else {
+      const error = await res.json();
+      alert("Error updating organization: " + error.error);
+    }
   };
 
   return (
@@ -82,6 +101,7 @@ export default function OrganizationTable() {
           className="border px-3 py-2 rounded w-full text-gray-800 dark:text-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          disabled={!!editId} // disable while editing
         />
         <input
           type="text"
@@ -89,10 +109,12 @@ export default function OrganizationTable() {
           className="border px-3 py-2 rounded w-full text-gray-800 dark:text-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          disabled={!!editId}
         />
         <button
           onClick={handleCreateOrganization}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          disabled={!!editId}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
         >
           Add Organization
         </button>
@@ -117,20 +139,57 @@ export default function OrganizationTable() {
                   key={org.id}
                   className="border-b hover:bg-gray-50 dark:hover:bg-white/10"
                 >
-                  <td className="py-2 px-3 text-left">{org.name}</td>
+                  <td className="py-2 px-3 text-left">
+                    {editId === org.id ? (
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="border rounded px-2 py-1 w-full"
+                      />
+                    ) : (
+                      org.name
+                    )}
+                  </td>
                   <td className="py-2 px-3 text-left truncate max-w-[200px]">
-                    {org.description || "-"}
+                    {editId === org.id ? (
+                      <input
+                        type="text"
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        className="border rounded px-2 py-1 w-full"
+                      />
+                    ) : (
+                      org.description || "-"
+                    )}
                   </td>
                   <td className="py-2 px-3 text-left text-xs">
                     {new Date(org.created_at).toLocaleString()}
                   </td>
                   <td className="py-2 px-3 text-left">
-                    <button
-                      onClick={() => handleDelete(org.id)}
-                      className="text-red-600 hover:underline"
-                    >
-                      Delete
-                    </button>
+                    {editId === org.id ? (
+                      <>
+                        <button
+                          onClick={saveEdit}
+                          className="text-green-600 hover:underline mr-2"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelEditing}
+                          className="text-gray-600 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => startEditing(org)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        Edit
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
