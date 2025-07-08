@@ -1,5 +1,5 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router";
-import { useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { useSession } from "./hooks/useSession";
 import SignIn from "./pages/AuthPages/SignIn";
 import SignUp from "./pages/AuthPages/SignUp";
 import NotFound from "./pages/Vehicles/QRView";
@@ -21,47 +21,29 @@ import { ScrollToTop } from "./components/common/ScrollToTop";
 import Home from "./pages/Dashboard/Home";
 import VehicleRegistry from "./pages/Vehicles/VehicleRegistry";
 import QRView from "./pages/Vehicles/QRView";
-import ProtectedRoute from "./components/ProtectedRoute";
+import ProtectedRoute from "./routes/ProtectedRoute";
 import UserTable from "./pages/Users/UserTable";
-import InviteAccept from "./pages/AuthPages/InviteAccept";
-import { supabase } from "./supabaseClient";
+import InviteAccept from "./pages/AuthPages/EmailConfirmation";
+import AccountConfirmation from "./pages/AuthPages/AccountConfirmation";
 import OrganizationTable from "./pages/Organization/OrganizationTable";
+import { useMarkInviteAsAccepted } from "./hooks/useMarkInviteAsAccepted";
 
 export default function App() {
-  useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === "SIGNED_IN" && session?.user?.email_confirmed_at) {
-          const inviteCode = session.user.user_metadata?.invite_code;
-
-          if (inviteCode) {
-            const { error } = await supabase
-              .from("invites")
-              .update({ accepted: true })
-              .eq("invite_code", inviteCode)
-              .eq("accepted", false);
-
-            if (error) console.error("Invite update failed:", error.message);
-            else console.log("✅ Invite marked as accepted");
-          }
-        }
-      }
-    );
-
-    return () => listener.subscription.unsubscribe();
-  }, []);
+  const session = useSession(); // Using the custom hook
+  useMarkInviteAsAccepted(session);
 
   return (
     <Router>
       <ScrollToTop />
       <Routes>
         {/* public routes */}
+        <Route path="/accountconfirmation" element={<AccountConfirmation />} />
         <Route path="/vehicle/:id" element={<QRView />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/invite" element={<InviteAccept />} />
 
-        {/* protected */}
+        {/* protected routes */}
         <Route
           element={
             <ProtectedRoute>
@@ -73,7 +55,6 @@ export default function App() {
           <Route path="/vehicles" element={<VehicleRegistry />} />
           <Route path="/profile" element={<UserProfiles />} />
           <Route path="/organizations" element={<OrganizationTable />} />
-
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/blank" element={<Blank />} />
           <Route path="/form-elements" element={<FormElements />} />

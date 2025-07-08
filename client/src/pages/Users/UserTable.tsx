@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../../supabaseClient";
-import { v4 as uuidv4 } from "uuid";
 
 interface UserInvite {
   id: string;
@@ -28,61 +26,63 @@ export default function UserTable() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationId, setOrganizationId] = useState(""); // selected org
 
+  const VITE_API_URL = import.meta.env.VITE_API_URL;
+
   useEffect(() => {
     fetchInvites();
     fetchOrganizations();
   }, []);
 
   const fetchOrganizations = async () => {
-    const { data, error } = await supabase
-      .from("organizations")
-      .select("id, name");
-    if (error) {
-      console.error("Error fetching organizations:", error.message);
-    } else {
-      setOrganizations(data || []);
+    try {
+      const res = await fetch(`${VITE_API_URL}/api/organizations`);
+      if (!res.ok) throw new Error("Failed to fetch organizations");
+      const data = await res.json();
+      setOrganizations(data);
+    } catch (error) {
+      console.error("Error fetching organizations", error);
     }
   };
 
   const fetchInvites = async () => {
-    const { data, error } = await supabase
-      .from("invites")
-      .select("*, organizations(name)");
-
-    if (error) {
-      console.error("Error fetching invites:", error.message);
-    } else {
-      setInvites(data || []);
+    setLoading(true);
+    try {
+      const res = await fetch(`${VITE_API_URL}/api/invites`);
+      if (!res.ok) throw new Error("Network response was not ok");
+      const data = await res.json();
+      setInvites(data);
+    } catch (err) {
+      console.error("Error fetching invites", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleCreateInvite = async () => {
-    const code = uuidv4();
-
     if (!organizationId) {
       alert("Please select an organization.");
       return;
     }
 
-    const { error } = await supabase.from("invites").insert([
-      {
+    const res = await fetch(`${VITE_API_URL}/api/invites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         email,
-        invite_code: code,
         role: "user",
         position: position.trim(),
         organization_id: organizationId,
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    ]);
+      }),
+    });
 
-    if (!error) {
+    if (res.ok) {
       setEmail("");
       setPosition("");
       setOrganizationId("");
       fetchInvites();
     } else {
-      alert("Error creating invite: " + error.message);
+      const error = await res.json();
+      alert("Error creating invite: " + error.error);
     }
   };
 

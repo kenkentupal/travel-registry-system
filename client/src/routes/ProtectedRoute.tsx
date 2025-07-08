@@ -1,3 +1,4 @@
+// ProtectedRoute.tsx
 import { JSX, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -12,31 +13,47 @@ export default function ProtectedRoute({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) console.error("Session error:", error.message);
-      setSession(data.session);
-      setLoading(false);
+    const restoreSession = async () => {
+      try {
+        const sessionFromStorage = localStorage.getItem("supabase.auth.token");
+        if (sessionFromStorage) {
+          const sessionData = JSON.parse(sessionFromStorage);
+          setSession(sessionData);
+          setLoading(false);
+          return;
+        }
+
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error("Session fetch error:", error.message);
+        } else {
+          setSession(data.session);
+        }
+      } catch (error) {
+        console.error("Error restoring session:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    initSession();
+    restoreSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
+        setLoading(false);
       }
     );
 
-    return () => listener.subscription.unsubscribe();
+    return () => listener?.subscription?.unsubscribe();
   }, []);
 
-  // 🔄 Sync invite/profile (side-effect hook)
   useSyncUser(session);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-500 text-sm">
-        Checking session...
+        Please Reload
       </div>
     );
   }

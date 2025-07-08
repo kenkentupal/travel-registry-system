@@ -1,4 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+// supabaseClient.ts
+import { createClient, type Session } from "@supabase/supabase-js";
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -6,3 +7,4 @@ const supabase = createClient(
 );
 
 export { supabase };
+export type { Session };

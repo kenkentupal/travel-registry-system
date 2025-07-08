@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 // Routes
 import vehicleRoutes from "./routes/vehicleRoutes.js";
 import organizationRoutes from "./routes/organizationRoutes.js";
+import inviteRoutes from "./routes/inviteRoutes.js";
 
 dotenv.config();
 
@@ -15,6 +16,7 @@ app.use(express.json());
 
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/organizations", organizationRoutes);
+app.use("/api/invites", inviteRoutes);
 
 app.get("/", (req, res) => res.send("API is running"));
 

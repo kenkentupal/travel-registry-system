@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { supabase } from "../../supabaseClient"; // Adjust the import path as needed
+const user = supabase.auth.getUser(); // async, so handle properly
 
 interface Organization {
   id: string;
@@ -37,7 +39,10 @@ export default function OrganizationTable() {
   };
 
   const handleCreateOrganization = async () => {
-    const userId = "current_user_id_here"; // replace this properly
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const userId = user?.id;
 
     const res = await fetch(`${VITE_API_URL}/api/organizations`, {
       method: "POST",
