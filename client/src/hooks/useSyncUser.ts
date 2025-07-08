@@ -69,12 +69,5 @@ export function useSyncUser(session: any) {
         console.log("✅ Synced profile from invite for user:", user.email);
       }
     };
-
-    if (session?.user) {
-      console.log("Session exists, syncing user profile...");
-      syncProfileFromInvite();
-    } else {
-      console.log("No session found, skipping sync");
-    }
   }, [session]);
 }

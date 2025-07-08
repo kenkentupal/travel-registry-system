@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import vehicleRoutes from "./routes/vehicleRoutes.js";
 import organizationRoutes from "./routes/organizationRoutes.js";
 import inviteRoutes from "./routes/inviteRoutes.js";
+import { fetchProfiles } from "./controllers/profileController.js";
 
 dotenv.config();
 
@@ -17,6 +18,7 @@ app.use(express.json());
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/invites", inviteRoutes);
+app.use("/api/profiles", fetchProfiles);
 
 app.get("/", (req, res) => res.send("API is running"));
 

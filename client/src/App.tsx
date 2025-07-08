@@ -1,5 +1,10 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { useSession } from "./hooks/useSession";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { useSession } from "./hooks/useSession"; // Custom hook to check session
 import SignIn from "./pages/AuthPages/SignIn";
 import SignUp from "./pages/AuthPages/SignUp";
 import NotFound from "./pages/Vehicles/QRView";
@@ -22,14 +27,14 @@ import Home from "./pages/Dashboard/Home";
 import VehicleRegistry from "./pages/Vehicles/VehicleRegistry";
 import QRView from "./pages/Vehicles/QRView";
 import ProtectedRoute from "./routes/ProtectedRoute";
-import UserTable from "./pages/Users/UserTable";
+import Invites from "./pages/Users/Invites";
 import InviteAccept from "./pages/AuthPages/EmailConfirmation";
-import AccountConfirmation from "./pages/AuthPages/AccountConfirmation";
 import OrganizationTable from "./pages/Organization/OrganizationTable";
 import { useMarkInviteAsAccepted } from "./hooks/useMarkInviteAsAccepted";
+import List from "./pages/Users/List";
 
 export default function App() {
-  const session = useSession(); // Using the custom hook
+  const session = useSession(); // Using the custom hook to get the session
   useMarkInviteAsAccepted(session);
 
   return (
@@ -37,9 +42,14 @@ export default function App() {
       <ScrollToTop />
       <Routes>
         {/* public routes */}
-        <Route path="/accountconfirmation" element={<AccountConfirmation />} />
         <Route path="/vehicle/:id" element={<QRView />} />
-        <Route path="/signin" element={<SignIn />} />
+
+        {/* Redirect to Home if already signed in */}
+        <Route
+          path="/signin"
+          element={session ? <Navigate to="/" replace /> : <SignIn />}
+        />
+
         <Route path="/signup" element={<SignUp />} />
         <Route path="/invite" element={<InviteAccept />} />
 
@@ -67,7 +77,8 @@ export default function App() {
           <Route path="/videos" element={<Videos />} />
           <Route path="/line-chart" element={<LineChart />} />
           <Route path="/bar-chart" element={<BarChart />} />
-          <Route path="/user-invites" element={<UserTable />} />
+          <Route path="/user-invites" element={<Invites />} />
+          <Route path="/list" element={<List />} />
         </Route>
       </Routes>
     </Router>

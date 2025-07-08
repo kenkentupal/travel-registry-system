@@ -4,10 +4,10 @@ interface UserInvite {
   id: string;
   email: string;
   role: string;
-  position: string; // ← added
+  position: string;
   invite_code: string;
   accepted: boolean;
-  organization_id?: string; // 👈 optional
+  organization_id?: string;
   organizations?: {
     name: string;
   };
@@ -87,7 +87,7 @@ export default function UserTable() {
   };
 
   return (
-    <div className="p-4 bg-white dark:bg-gray-900 rounded-xl shadow">
+    <div className="p-4 bg-white dark:bg-gray-900 rounded-xl shadow w-full">
       <h2 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
         User Invites
       </h2>
@@ -135,40 +135,65 @@ export default function UserTable() {
       {loading ? (
         <p className="text-gray-700 dark:text-gray-300">Loading invites...</p>
       ) : (
-        <div className="overflow-x-auto w-full">
-          <table className="w-full min-w-[600px] text-sm text-left border-collapse text-gray-800 dark:text-gray-100">
-            <thead>
-              <tr className="text-gray-600 dark:text-gray-300 border-b">
-                <th className="py-2 px-3">Email</th>
-                <th className="py-2 px-3">Position</th>
-                <th className="py-2 px-3">Organization</th>
-                <th className="py-2 px-3">Accepted</th>
-                <th className="py-2 px-3">Invite Link</th>
-              </tr>
-            </thead>
-            <tbody>
-              {invites.map((invite) => (
-                <tr
-                  key={invite.id}
-                  className="border-b hover:bg-gray-50 dark:hover:bg-white/10"
-                >
-                  <td className="py-2 px-3">{invite.email}</td>
-                  <td className="py-2 px-3">{invite.position}</td>
-                  <td className="py-2 px-3">
-                    {invite.organizations?.name ?? "N/A"}
-                  </td>
-                  <td className="py-2 px-3">
-                    {invite.accepted ? "✅ Yes" : "❌ No"}
-                  </td>
-                  <td className="py-2 px-3 break-all">
-                    <code className="text-blue-600">
-                      {`${window.location.origin}/invite?code=${invite.invite_code}`}
-                    </code>
-                  </td>
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
+          <div className="max-w-full">
+            <table className="w-full text-sm text-left border-collapse text-gray-800 dark:text-gray-100">
+              <thead>
+                <tr className="text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-white/10">
+                  <th className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Email
+                  </th>
+                  <th className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Position
+                  </th>
+                  <th className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Organization
+                  </th>
+                  <th className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Accepted
+                  </th>
+                  <th className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                    Invite Link
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-white/10">
+                {invites.map((invite) => (
+                  <tr
+                    key={invite.id}
+                    className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+                  >
+                    <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                      {invite.email}
+                    </td>
+                    <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                      {invite.position}
+                    </td>
+                    <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                      {invite.organizations?.name ?? "N/A"}
+                    </td>
+                    <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                      {invite.accepted ? (
+                        <span className="text-green-500">✅ Yes</span>
+                      ) : (
+                        <span className="text-red-500">❌ No</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-1 whitespace-nowrap overflow-hidden text-ellipsis max-w-[300px]">
+                      <a
+                        href={`${window.location.origin}/invite?code=${invite.invite_code}`}
+                        className="text-blue-600 hover:underline"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {`${window.location.origin}/invite?code=${invite.invite_code}`}
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

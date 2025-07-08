@@ -34,9 +34,12 @@ const navItems: NavItem[] = [
     icon: <VehicleIcon />, // or use any from lucide or heroicons
   },
   {
-    name: "User Control",
-    path: "/user-invites",
-    icon: <UserCircleIcon />, // or use any from lucide or heroicons
+    icon: <UserCircleIcon />,
+    name: "User Management",
+    subItems: [
+      { name: "Invites", path: "/user-invites", pro: false },
+      { name: "List", path: "/list", pro: false },
+    ],
   },
 
   {

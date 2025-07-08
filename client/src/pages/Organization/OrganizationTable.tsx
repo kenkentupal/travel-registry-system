@@ -126,25 +126,27 @@ export default function OrganizationTable() {
       </div>
 
       {loading ? (
-        <p>Loading organizations...</p>
+        <p className="text-gray-700 dark:text-gray-300">
+          Loading organizations...
+        </p>
       ) : (
         <div className="overflow-x-auto w-full">
           <table className="w-full min-w-[600px] text-sm border-collapse table-fixed text-gray-800 dark:text-gray-100">
             <thead>
-              <tr className="text-gray-600 dark:text-gray-300 border-b">
+              <tr className="text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-white/10">
                 <th className="py-2 px-3 text-left w-[200px]">Name</th>
                 <th className="py-2 px-3 text-left">Description</th>
                 <th className="py-2 px-3 text-left">Created At</th>
                 <th className="py-2 px-3 text-left">Action</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100 dark:divide-white/10">
               {orgs.map((org) => (
                 <tr
                   key={org.id}
-                  className="border-b hover:bg-gray-50 dark:hover:bg-white/10"
+                  className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
                 >
-                  <td className="py-2 px-3 text-left">
+                  <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
                     {editId === org.id ? (
                       <input
                         type="text"
@@ -156,7 +158,7 @@ export default function OrganizationTable() {
                       org.name
                     )}
                   </td>
-                  <td className="py-2 px-3 text-left truncate max-w-[200px]">
+                  <td className="px-5 py-4 text-gray-700 dark:text-gray-300 truncate max-w-[200px]">
                     {editId === org.id ? (
                       <input
                         type="text"
@@ -168,10 +170,10 @@ export default function OrganizationTable() {
                       org.description || "-"
                     )}
                   </td>
-                  <td className="py-2 px-3 text-left text-xs">
+                  <td className="px-5 py-4 text-gray-700 dark:text-gray-300 text-xs">
                     {new Date(org.created_at).toLocaleString()}
                   </td>
-                  <td className="py-2 px-3 text-left">
+                  <td className="px-5 py-4">
                     {editId === org.id ? (
                       <>
                         <button
