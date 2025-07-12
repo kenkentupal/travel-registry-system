@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearch } from "../../context/SearchContext";
 
 interface Profiles {
   id: string;
@@ -17,31 +18,30 @@ interface Organization {
 }
 
 export default function List() {
-  const [email, setEmail] = useState("");
   const [position, setPosition] = useState("");
   const [organizationId, setOrganizationId] = useState(""); // selected org
   const [organizations, setOrganizations] = useState<Organization[]>([]); // Stores organizations
   const [profiles, setProfiles] = useState<Profiles[]>([]); // All profiles
   const [filteredProfiles, setFilteredProfiles] = useState<Profiles[]>([]); // Filtered profiles based on search
 
+  const { search } = useSearch();
   const VITE_API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     fetchProfiles();
-    fetchOrganizations(); // Fetch organizations alongside profiles
+    fetchOrganizations();
   }, []);
 
   useEffect(() => {
-    // Apply filtering whenever any search criteria changes
     filterProfiles();
-  }, [email, position, organizationId, profiles]);
+  }, [search, position, organizationId, profiles]);
 
   const fetchOrganizations = async () => {
     try {
       const res = await fetch(`${VITE_API_URL}/api/organizations`);
       if (!res.ok) throw new Error("Failed to fetch organizations");
       const data = await res.json();
-      setOrganizations(data); // Set organizations to state
+      setOrganizations(data);
     } catch (error) {
       console.error("Error fetching organizations", error);
     }
@@ -60,17 +60,19 @@ export default function List() {
 
   const filterProfiles = () => {
     const filtered = profiles.filter((profile) => {
-      const matchesEmail = profile.email
-        .toLowerCase()
-        .includes(email.toLowerCase());
+      const matchesSearch =
+        profile.email.toLowerCase().includes(search.toLowerCase()) ||
+        profile.position.toLowerCase().includes(search.toLowerCase());
+
       const matchesPosition = position
         ? profile.position.toLowerCase().includes(position.toLowerCase())
         : true;
+
       const matchesOrganization = organizationId
         ? profile.organization_id === organizationId
         : true;
 
-      return matchesEmail && matchesPosition && matchesOrganization;
+      return matchesSearch && matchesPosition && matchesOrganization;
     });
     setFilteredProfiles(filtered);
   };
@@ -81,14 +83,7 @@ export default function List() {
         Search Profiles
       </h2>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <input
-          type="email"
-          placeholder="Search by Email"
-          className="border px-4 py-2 rounded-md w-full text-gray-800 dark:text-white dark:bg-gray-800 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <select
           value={position}
           onChange={(e) => setPosition(e.target.value)}
@@ -138,7 +133,6 @@ export default function List() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-white/10">
                 {filteredProfiles.map((profile) => {
-                  // Find the organization name based on organization_id
                   const organizationName =
                     organizations.find(
                       (org) => org.id === profile.organization_id

@@ -6,26 +6,143 @@ import Label from "../form/Label";
 import { useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient";
 
+interface Profiles {
+  id: string;
+  email: string;
+  position: string;
+  organization_id: string;
+  created_at: string;
+  organizations?: {
+    name: string;
+  };
+}
+
+interface Organization {
+  id: string;
+  name: string;
+}
+
 export default function UserMetaCard() {
   const { isOpen, openModal, closeModal } = useModal();
-  const handleSave = () => {
-    // Handle save logic here
-    console.log("Saving changes...");
-    closeModal();
-  };
+  const [organizationId, setOrganizationId] = useState("");
+  const [position, setPosition] = useState("");
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
+  const [profileImage, setProfileImage] = useState<File | null>(null);
+  const [profileImageUrl, setProfileImageUrl] = useState<string>("");
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProfileImage(file);
+    }
+  };
+
+  const VITE_API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data, error } = await supabase.auth.getUser();
-      if (error) {
-        console.error("Error fetching user:", error.message);
-      } else {
-        setUser(data.user);
+    const fetchUserAndMeta = async () => {
+      const { data: userData, error: userError } =
+        await supabase.auth.getUser();
+      if (userError || !userData.user) return;
+
+      setUser(userData.user);
+      setFirstName(userData.user.user_metadata?.first_name || "");
+      setLastName(userData.user.user_metadata?.last_name || "");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const profilesRes = await fetch(`${VITE_API_URL}/api/profiles`, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+      });
+      const profiles = await profilesRes.json();
+      const profile = profiles.find(
+        (p: Profiles) => p.email === userData.user.email
+      );
+
+      if (profile) {
+        setPosition(profile.position || "");
+        setOrganizationId(profile.organization_id || "");
+      }
+
+      const orgsRes = await fetch(`${VITE_API_URL}/api/organizations`);
+      const orgsData = await orgsRes.json();
+      setOrganizations(orgsData);
+
+      if (profile) {
+        setPosition(profile.position || "");
+        setOrganizationId(profile.organization_id || "");
+        setProfileImageUrl(profile.avatar_url || ""); // assuming avatar_url in DB
       }
     };
-    fetchUser();
+
+    fetchUserAndMeta();
   }, []);
+
+  const handleSave = async () => {
+    try {
+      if (!profileImage) {
+        console.warn("No file selected.");
+        return;
+      }
+
+      if (!user) {
+        console.error("User not loaded.");
+        return;
+      }
+
+      const fileExt = profileImage.name.split(".").pop();
+      const fileName = `${user.id}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      console.log("Uploading image to Supabase...");
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, profileImage, {
+          upsert: true,
+          contentType: profileImage.type,
+        });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError.message);
+        return;
+      }
+
+      console.log("Upload success:", uploadData);
+
+      const { data: publicUrlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      const uploadedImageUrl = publicUrlData.publicUrl;
+      console.log("Public URL:", uploadedImageUrl);
+
+      // Update avatar_url in profiles table
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: uploadedImageUrl })
+        .eq("id", user.id);
+
+      if (updateError) {
+        console.error("Error updating profile:", updateError.message);
+        return;
+      }
+
+      setProfileImageUrl(uploadedImageUrl);
+      console.log("✅ Profile updated.");
+      closeModal();
+    } catch (err: any) {
+      console.error("❌ Failed to upload image:", err.message);
+    }
+  };
 
   return (
     <>
@@ -33,98 +150,127 @@ export default function UserMetaCard() {
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col items-center w-full gap-6 xl:flex-row">
             <div className="w-20 h-20 overflow-hidden border border-gray-200 rounded-full dark:border-gray-800">
-              <img src="/images/user/owner.jpg" alt="user" />
+              <img
+                src={
+                  profileImageUrl ||
+                  "https://i.pinimg.com/474x/07/c4/72/07c4720d19a9e9edad9d0e939eca304a.jpg"
+                }
+                alt="user"
+              />
             </div>
             <div className="order-3 xl:order-2">
               <h4 className="mb-2 text-lg font-semibold text-center text-gray-800 dark:text-white/90 xl:text-left">
-                {user?.user_metadata?.first_name}{" "}
-                {user?.user_metadata?.last_name}
+                {firstName} {lastName}
               </h4>
-
               <div className="flex flex-col items-center gap-1 text-center xl:flex-row xl:gap-3 xl:text-left">
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Position
+                  {position}
                 </p>
                 <div className="hidden h-3.5 w-px bg-gray-300 dark:bg-gray-700 xl:block"></div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Organization
+                  {organizations.find((org) => org.id === organizationId)
+                    ?.name || "N/A"}
                 </p>
               </div>
             </div>
           </div>
+
           <button
             onClick={openModal}
             className="flex w-full items-center justify-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-theme-xs hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 lg:inline-flex lg:w-auto"
           >
-            <svg
-              className="fill-current"
-              width="18"
-              height="18"
-              viewBox="0 0 18 18"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M15.0911 2.78206C14.2125 1.90338 12.7878 1.90338 11.9092 2.78206L4.57524 10.116C4.26682 10.4244 4.0547 10.8158 3.96468 11.2426L3.31231 14.3352C3.25997 14.5833 3.33653 14.841 3.51583 15.0203C3.69512 15.1996 3.95286 15.2761 4.20096 15.2238L7.29355 14.5714C7.72031 14.4814 8.11172 14.2693 8.42013 13.9609L15.7541 6.62695C16.6327 5.74827 16.6327 4.32365 15.7541 3.44497L15.0911 2.78206ZM12.9698 3.84272C13.2627 3.54982 13.7376 3.54982 14.0305 3.84272L14.6934 4.50563C14.9863 4.79852 14.9863 5.2734 14.6934 5.56629L14.044 6.21573L12.3204 4.49215L12.9698 3.84272ZM11.2597 5.55281L5.6359 11.1766C5.53309 11.2794 5.46238 11.4099 5.43238 11.5522L5.01758 13.5185L6.98394 13.1037C7.1262 13.0737 7.25666 13.003 7.35947 12.9002L12.9833 7.27639L11.2597 5.55281Z"
-                fill=""
-              />
-            </svg>
             Edit
           </button>
         </div>
       </div>
+
       <Modal isOpen={isOpen} onClose={closeModal} className="max-w-[700px] m-4">
-        <div className="no-scrollbar relative w-full max-w-[700px] overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
-          <div className="px-2 pr-14">
-            <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
-              Edit Personal Information
-            </h4>
-            <p className="mb-6 text-sm text-gray-500 dark:text-gray-400 lg:mb-7">
-              Update your details to keep your profile up-to-date.
-            </p>
-          </div>
-          <form className="flex flex-col">
-            <div className="custom-scrollbar h-[450px] overflow-y-auto px-2 pb-3">
-              <div className="mt-7">
-                <h5 className="mb-5 text-lg font-medium text-gray-800 dark:text-white/90 lg:mb-6">
-                  Personal Information
-                </h5>
-
-                <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
-                  <div className="col-span-2 lg:col-span-1">
-                    <Label>First Name</Label>
-                    <Input type="text" value="Musharof" />
-                  </div>
-
-                  <div className="col-span-2 lg:col-span-1">
-                    <Label>Last Name</Label>
-                    <Input type="text" value="Chowdhury" />
-                  </div>
-
-                  {/* <div className="col-span-2 lg:col-span-1">
-                    <Label>Email Address</Label>
-                    <Input type="text" value="randomuser@pimjo.com" />
-                  </div> */}
-
-                  {/* <div className="col-span-2 lg:col-span-1">
-                    <Label>Phone</Label>
-                    <Input type="text" value="+09 363 398 46" />
-                  </div> */}
-
-                  <div className="col-span-2">
-                    <Label>Bio</Label>
-                    <Input type="text" value="Team Manager" />
-                  </div>
+        <div className="relative w-full max-w-[700px] overflow-y-auto rounded-3xl bg-white p-4 dark:bg-gray-900 lg:p-11">
+          <h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
+            Edit Personal Information
+          </h4>
+          <form
+            className="flex flex-col"
+            onSubmit={(e) => {
+              e.preventDefault(); // 👈 prevents auto-reload
+              handleSave(); // call your upload function
+            }}
+          >
+            <div className="col-span-2">
+              <Label>Profile Picture</Label>
+              <div className="flex items-center gap-4 mt-2">
+                <div className="w-20 h-20 flex-shrink-0 overflow-hidden border rounded-full bg-gray-100 dark:bg-gray-800">
+                  <img
+                    src={
+                      profileImage
+                        ? URL.createObjectURL(profileImage)
+                        : profileImageUrl ||
+                          "https://i.pinimg.com/474x/07/c4/72/07c4720d19a9e9edad9d0e939eca304a.jpg"
+                    }
+                    alt="Profile Preview"
+                    className="object-cover w-full h-full"
+                  />
                 </div>
+                <label className="relative flex flex-col items-center justify-center w-full h-20 border-2 border-dashed rounded-xl cursor-pointer border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">
+                    Click or drag to upload
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </label>
               </div>
             </div>
-            <div className="flex items-center gap-3 px-2 mt-6 lg:justify-end">
+
+            <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
+              <div>
+                <Label>First Name</Label>
+                <Input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Last Name</Label>
+                <Input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
+              <div className="col-span-2">
+                <Label>Position</Label>
+                <Input
+                  type="text"
+                  value={position}
+                  onChange={(e) => setPosition(e.target.value)}
+                />
+              </div>
+              <div className="col-span-2">
+                <Label>Organization</Label>
+                <select
+                  value={organizationId}
+                  onChange={(e) => setOrganizationId(e.target.value)}
+                  className="border px-4 py-2 rounded-md w-full dark:bg-gray-800 text-gray-800 dark:text-white"
+                >
+                  <option value="">Select organization</option>
+                  {organizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
               <Button size="sm" variant="outline" onClick={closeModal}>
                 Close
               </Button>
-              <Button size="sm" onClick={handleSave}>
+              <Button size="sm" type="button" onClick={handleSave}>
                 Save Changes
               </Button>
             </div>

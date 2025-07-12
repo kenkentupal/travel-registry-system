@@ -7,7 +7,6 @@ import {
 import { useSession } from "./hooks/useSession"; // Custom hook to check session
 import SignIn from "./pages/AuthPages/SignIn";
 import SignUp from "./pages/AuthPages/SignUp";
-import NotFound from "./pages/Vehicles/QRView";
 import UserProfiles from "./pages/UserProfiles";
 import Videos from "./pages/UiElements/Videos";
 import Images from "./pages/UiElements/Images";
@@ -32,6 +31,7 @@ import InviteAccept from "./pages/AuthPages/EmailConfirmation";
 import OrganizationTable from "./pages/Organization/OrganizationTable";
 import { useMarkInviteAsAccepted } from "./hooks/useMarkInviteAsAccepted";
 import List from "./pages/Users/List";
+import { SearchProvider } from "./context/SearchContext";
 
 export default function App() {
   const session = useSession(); // Using the custom hook to get the session
@@ -57,7 +57,9 @@ export default function App() {
         <Route
           element={
             <ProtectedRoute>
-              <AppLayout />
+              <SearchProvider>
+                <AppLayout />
+              </SearchProvider>
             </ProtectedRoute>
           }
         >

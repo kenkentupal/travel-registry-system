@@ -11,7 +11,6 @@ export function useSyncUser(session: any) {
         return;
       }
 
-      // Check if the user already has a profile
       const { data: existing } = await supabase
         .from("profiles")
         .select("id")
@@ -19,11 +18,9 @@ export function useSyncUser(session: any) {
         .single();
 
       if (existing) {
-        console.log("User profile already exists, skipping sync");
         return;
       }
 
-      // Fetch invite using user email, handle multiple results
       const { data: inviteData, error: inviteError } = await supabase
         .from("invites")
         .select("*")
@@ -40,20 +37,8 @@ export function useSyncUser(session: any) {
         return;
       }
 
-      if (inviteData.length > 1) {
-        console.warn(
-          "Multiple accepted invites found for user",
-          user.email,
-          "using the first one."
-        );
-      }
-
-      // Use the first invite if there are multiple
       const invite = inviteData[0];
 
-      console.log("Invite found, creating profile for user", user.email);
-
-      // Insert profile data from invite
       const { error } = await supabase.from("profiles").insert([
         {
           id: user.id,
@@ -69,5 +54,9 @@ export function useSyncUser(session: any) {
         console.log("✅ Synced profile from invite for user:", user.email);
       }
     };
+
+    if (session?.user) {
+      syncProfileFromInvite(); // ✅ Now the function is called
+    }
   }, [session]);
 }

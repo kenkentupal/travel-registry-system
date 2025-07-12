@@ -1,8 +1,8 @@
 import express from "express";
-import { getVehicles } from "../controllers/vehicleController.js";
+import { fetchVehicles } from "../controllers/vehicleController.js";
 
 const router = express.Router();
 
-router.get("/", getVehicles);
+router.get("/", fetchVehicles);
 
 export default router;

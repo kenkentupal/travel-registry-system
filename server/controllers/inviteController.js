@@ -1,12 +1,31 @@
+// controllers/inviteController.js
 import { supabase } from "../supabase/supabaseClient.js";
 import { v4 as uuidv4 } from "uuid";
 
 // Fetch invites with organization name
-// controllers/inviteController.js
 export const fetchInvites = async (req, res) => {
-  const { data, error } = await supabase.from("invites").select("*");
+  const { data, error } = await supabase
+    .from("invites")
+    .select(
+      `
+      id,
+      email,
+      role,
+      position,
+      invite_code,
+      accepted,
+      organization_id,
+      organizations (
+        name
+      )
+    `
+    )
+    .order("created_at", { ascending: false }); // ⬅️ Sort by latest first
 
   if (error) return res.status(500).json({ error: error.message });
+  if (!data || data.accepted || new Date(data.expires_at) < new Date()) {
+    setInvalid(true);
+  }
 
   res.json(data);
 };
