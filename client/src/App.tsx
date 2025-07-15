@@ -4,56 +4,62 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { useSession } from "./hooks/useSession"; // Custom hook to check session
+import { useSession } from "./hooks/useSession";
+import { useMarkInviteAsAccepted } from "./hooks/useMarkInviteAsAccepted";
+import { SearchProvider } from "./context/SearchContext";
+import { ScrollToTop } from "./components/common/ScrollToTop";
+
+import ProtectedRoute from "./routes/ProtectedRoute";
+import RoleRoute from "./routes/RoleRoute"; // 💡 New role route
+import { useUser } from "./hooks/useUser"; // 💡 New user hook
+
+// Pages
 import SignIn from "./pages/AuthPages/SignIn";
 import SignUp from "./pages/AuthPages/SignUp";
-import UserProfiles from "./pages/UserProfiles";
-import Videos from "./pages/UiElements/Videos";
-import Images from "./pages/UiElements/Images";
-import Alerts from "./pages/UiElements/Alerts";
-import Badges from "./pages/UiElements/Badges";
-import Avatars from "./pages/UiElements/Avatars";
-import Buttons from "./pages/UiElements/Buttons";
-import LineChart from "./pages/Charts/LineChart";
-import BarChart from "./pages/Charts/BarChart";
-import Calendar from "./pages/Calendar";
-import BasicTables from "./pages/Tables/BasicTables";
-import FormElements from "./pages/Forms/FormElements";
-import Blank from "./pages/Blank";
-import AppLayout from "./layout/AppLayout";
-import { ScrollToTop } from "./components/common/ScrollToTop";
+import InviteAccept from "./pages/AuthPages/EmailConfirmation";
 import Home from "./pages/Dashboard/Home";
 import VehicleRegistry from "./pages/Vehicles/VehicleRegistry";
 import QRView from "./pages/Vehicles/QRView";
-import ProtectedRoute from "./routes/ProtectedRoute";
+import UserProfiles from "./pages/UserProfiles";
+import OrganizationTable from "./pages/Organization/OrganizationForm";
+import Calendar from "./pages/Calendar";
+import Blank from "./pages/Blank";
+import FormElements from "./pages/Forms/FormElements";
+import BasicTables from "./pages/Tables/BasicTables";
+import Alerts from "./pages/UiElements/Alerts";
+import Avatars from "./pages/UiElements/Avatars";
+import Badges from "./pages/UiElements/Badges";
+import Buttons from "./pages/UiElements/Buttons";
+import Images from "./pages/UiElements/Images";
+import Videos from "./pages/UiElements/Videos";
+import LineChart from "./pages/Charts/LineChart";
+import BarChart from "./pages/Charts/BarChart";
 import Invites from "./pages/Users/Invites";
-import InviteAccept from "./pages/AuthPages/EmailConfirmation";
-import OrganizationTable from "./pages/Organization/OrganizationTable";
-import { useMarkInviteAsAccepted } from "./hooks/useMarkInviteAsAccepted";
 import List from "./pages/Users/List";
-import { SearchProvider } from "./context/SearchContext";
+import AppLayout from "./layout/AppLayout";
 
 export default function App() {
-  const session = useSession(); // Using the custom hook to get the session
+  const session = useSession();
+  const { user, loading } = useUser();
+
   useMarkInviteAsAccepted(session);
+
+  if (loading) return null; // Show loader while user info is being fetched
 
   return (
     <Router>
       <ScrollToTop />
       <Routes>
-        {/* public routes */}
+        {/* Public routes */}
         <Route path="/vehicle/:id" element={<QRView />} />
-
-        {/* Redirect to Home if already signed in */}
         <Route
           path="/signin"
           element={session ? <Navigate to="/" replace /> : <SignIn />}
         />
-
         <Route path="/signup" element={<SignUp />} />
         <Route path="/invite" element={<InviteAccept />} />
 
-        {/* protected routes */}
+        {/* Protected routes */}
         <Route
           element={
             <ProtectedRoute>
@@ -63,24 +69,148 @@ export default function App() {
             </ProtectedRoute>
           }
         >
+          {/* Accessible to all logged-in roles */}
           <Route index path="/" element={<Home />} />
           <Route path="/vehicles" element={<VehicleRegistry />} />
-          <Route path="/profile" element={<UserProfiles />} />
-          <Route path="/organizations" element={<OrganizationTable />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/blank" element={<Blank />} />
-          <Route path="/form-elements" element={<FormElements />} />
-          <Route path="/basic-tables" element={<BasicTables />} />
-          <Route path="/alerts" element={<Alerts />} />
-          <Route path="/avatars" element={<Avatars />} />
-          <Route path="/badge" element={<Badges />} />
-          <Route path="/buttons" element={<Buttons />} />
-          <Route path="/images" element={<Images />} />
-          <Route path="/videos" element={<Videos />} />
-          <Route path="/line-chart" element={<LineChart />} />
-          <Route path="/bar-chart" element={<BarChart />} />
-          <Route path="/user-invites" element={<Invites />} />
-          <Route path="/list" element={<List />} />
+
+          {/* CEO and President only */}
+          <Route
+            path="/user-invites"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President", "Developer"]}>
+                <Invites />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/list"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President", "Developer"]}>
+                <List />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/organizations"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President", "Developer"]}>
+                <OrganizationTable />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President", "Developer"]}>
+                <UserProfiles />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              <RoleRoute
+                allowedRoles={[
+                  "CEO",
+                  "President",
+                  "Developer",
+                  "Member",
+                  "Driver",
+                ]}
+              >
+                <Calendar />
+              </RoleRoute>
+            }
+          />
+          {/*
+          <Route
+            path="/blank"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <Blank />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/form-elements"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <FormElements />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/basic-tables"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <BasicTables />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/alerts"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <Alerts />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/avatars"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <Avatars />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/badge"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <Badges />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/buttons"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <Buttons />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/images"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <Images />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/videos"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <Videos />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/line-chart"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <LineChart />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/bar-chart"
+            element={
+              <RoleRoute allowedRoles={["CEO", "President"]}>
+                <BarChart />
+              </RoleRoute>
+            }
+          /> */}
         </Route>
       </Routes>
     </Router>

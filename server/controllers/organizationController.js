@@ -1,8 +1,8 @@
-// server/controllers/organizationController.js
+import { createSupabaseClient } from "../supabase/supabaseClient.js";
 import { supabase } from "../supabase/supabaseClient.js";
 
-// Fetch all organizations
 export const fetchOrganizations = async (req, res) => {
+  // No token needed for public fetch
   const { data, error } = await supabase
     .from("organizations")
     .select("id, name, description, created_by, created_at")
@@ -14,13 +14,23 @@ export const fetchOrganizations = async (req, res) => {
   res.json(data);
 };
 
-// Create new organization
 export const createOrganization = async (req, res) => {
-  const { name, description, userId } = req.body;
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
 
-  if (!userId) {
+  const supabase = createSupabaseClient(token);
+
+  const { name, description } = req.body;
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
     return res.status(401).json({ error: "User not authenticated" });
   }
+
   if (!name || name.trim() === "") {
     return res.status(400).json({ error: "Organization name is required" });
   }
@@ -29,18 +39,23 @@ export const createOrganization = async (req, res) => {
     {
       name: name.trim(),
       description: description?.trim() || null,
-      created_by: userId,
+      created_by: user.id,
     },
   ]);
 
   if (error) {
     return res.status(500).json({ error: error.message });
   }
+
   res.status(201).json({ message: "Organization created successfully" });
 };
 
-// Delete organization by ID
 export const deleteOrganization = async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+  const supabase = createSupabaseClient(token);
+
   const { id } = req.params;
 
   const { error } = await supabase.from("organizations").delete().eq("id", id);
@@ -48,10 +63,16 @@ export const deleteOrganization = async (req, res) => {
   if (error) {
     return res.status(500).json({ error: error.message });
   }
+
   res.json({ message: "Organization deleted successfully" });
 };
 
 export const updateOrganization = async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+  const supabase = createSupabaseClient(token);
+
   const { id } = req.params;
   const { name, description } = req.body;
 
@@ -72,4 +93,20 @@ export const updateOrganization = async (req, res) => {
   }
 
   res.json({ message: "Organization updated successfully" });
+};
+
+export const getOrganizationById = async (req, res) => {
+  const { id } = req.params;
+
+  const { data, error } = await supabase
+    .from("organizations")
+    .select("id, name, description, created_by, created_at")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) {
+    return res.status(404).json({ error: "Organization not found" });
+  }
+
+  res.json(data);
 };

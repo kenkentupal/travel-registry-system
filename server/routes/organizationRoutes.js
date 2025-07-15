@@ -1,9 +1,10 @@
 import express from "express";
 import {
-  fetchOrganizations,
+  getOrganizationById,
   createOrganization,
   deleteOrganization,
   updateOrganization,
+  fetchOrganizations,
 } from "../controllers/organizationController.js";
 
 const router = express.Router();
@@ -11,6 +12,7 @@ const router = express.Router();
 router.get("/", fetchOrganizations);
 router.post("/", createOrganization);
 router.delete("/:id", deleteOrganization);
-router.put("/:id", updateOrganization); // <-- PUT route must be here!
+router.put("/:id", updateOrganization);
+router.get("/:id", getOrganizationById);
 
 export default router;

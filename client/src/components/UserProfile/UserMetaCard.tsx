@@ -44,6 +44,7 @@ export default function UserMetaCard() {
   const VITE_API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
+    
     const fetchUserAndMeta = async () => {
       const { data: userData, error: userError } =
         await supabase.auth.getUser();
@@ -61,7 +62,9 @@ export default function UserMetaCard() {
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
         },
-      });
+      }
+    
+    );
       const profiles = await profilesRes.json();
       const profile = profiles.find(
         (p: Profiles) => p.email === userData.user.email
@@ -72,8 +75,13 @@ export default function UserMetaCard() {
         setOrganizationId(profile.organization_id || "");
       }
 
-      const orgsRes = await fetch(`${VITE_API_URL}/api/organizations`);
+      const orgsRes = await fetch(`${VITE_API_URL}/api/organizations`, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+      });
       const orgsData = await orgsRes.json();
+      setOrganizations(orgsData);
       setOrganizations(orgsData);
 
       if (profile) {
@@ -192,7 +200,6 @@ export default function UserMetaCard() {
           <form
             className="flex flex-col"
             onSubmit={(e) => {
-              e.preventDefault(); // 👈 prevents auto-reload
               handleSave(); // call your upload function
             }}
           >

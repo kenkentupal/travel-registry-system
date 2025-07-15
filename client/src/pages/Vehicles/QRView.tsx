@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { QRCodeCanvas } from "qrcode.react"; // ✅ Make sure you installed: npm i qrcode.react
 
-import { supabase } from "../../supabaseClient";
 import GridShape from "../../components/common/GridShape";
-import PageMeta from "../../components/common/PageMeta";
+
+const VITE_API_URL = import.meta.env.VITE_API_URL;
 
 interface Vehicle {
   id: number;
@@ -17,6 +17,10 @@ interface Vehicle {
   notes?: string;
   insurance_document?: string;
   status: string;
+  organization_id: string;
+  organizations?: {
+    name: string;
+  };
 }
 
 export default function QRView() {
@@ -26,19 +30,17 @@ export default function QRView() {
 
   useEffect(() => {
     const fetchVehicle = async () => {
-      const { data, error } = await supabase
-        .from("vehicles")
-        .select("*")
-        .eq("id", parseInt(id!)) // Convert id from string to number
-        .single();
+      try {
+        const res = await fetch(`${VITE_API_URL}/api/vehicles/${id}`);
+        if (!res.ok) throw new Error("Failed to fetch vehicle");
 
-      if (error) {
-        console.error("Error fetching vehicle:", error.message);
-      } else {
+        const data = await res.json();
         setVehicle(data);
+      } catch (err) {
+        console.error("Error fetching vehicle:", err);
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     if (id) fetchVehicle();
@@ -78,9 +80,12 @@ export default function QRView() {
             <p>
               <strong>Type:</strong> {vehicle.vehicle_type}
             </p>
+
             <p>
-              <strong>Company:</strong> {vehicle.travel_company}
+              <strong>Organization:</strong>{" "}
+              {vehicle.organizations?.name || "N/A"}
             </p>
+
             <p>
               <strong>Driver:</strong> {vehicle.driver_name}
             </p>

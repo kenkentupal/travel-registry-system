@@ -112,17 +112,20 @@ const AppHeader: React.FC = () => {
             {/* Cross Icon */}
           </button>
 
-          <Link to="/" className="lg:hidden">
+          <Link to="/" className="lg:hidden flex items-center gap-2">
             <img
-              className="dark:hidden"
-              src="./images/logo/logo.svg"
+              src="/images/logo/tvtap_logo.svg"
               alt="Logo"
+              className="h-6 w-auto dark:hidden"
             />
             <img
-              className="hidden dark:block"
-              src="./images/logo/logo-dark.svg"
+              src="/images/logo/tvtap_logo.svg"
               alt="Logo"
+              className="h-6 w-auto hidden dark:block"
             />
+            <span className="text-lg font-semibold text-gray-800 dark:text-white tracking-wide">
+              TVTAP
+            </span>
           </Link>
 
           <button

@@ -1,7 +1,32 @@
-import { supabase, createSupabaseClient } from "../supabase/supabaseClient.js";
+import { createSupabaseClient } from "../supabase/supabaseClient.js";
 import { supabaseAdmin } from "../supabase/supabaseAdmin.js";
 
-// Fetch all organizations
+export const getCurrentUserProfile = async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+  const supabase = createSupabaseClient(token);
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return res.status(401).json({ error: "Invalid user session" });
+  }
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("position")
+    .eq("id", user.id)
+    .single();
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json(data);
+};
+
 export const fetchProfiles = async (req, res) => {
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) return res.status(401).json({ error: "Unauthorized" });
@@ -20,7 +45,6 @@ export const fetchProfiles = async (req, res) => {
   res.json(data);
 };
 
-// server/controllers/profileController.js
 export const updateUserMetadata = async (req, res) => {
   const { userId, first_name, last_name } = req.body;
 
@@ -41,4 +65,50 @@ export const updateUserMetadata = async (req, res) => {
   }
 
   res.status(200).json({ message: "User metadata updated successfully" });
+};
+
+export const fetchDriversByOrganization = async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+  const supabase = createSupabaseClient(token);
+  const { orgId } = req.params;
+
+  // Step 1: Get all "Driver" profiles from the same organization
+  const { data: profiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, position, organization_id")
+    .eq("position", "Driver")
+    .eq("organization_id", orgId);
+
+  if (profileError) {
+    return res.status(500).json({ error: profileError.message });
+  }
+
+  // Step 2: Use supabaseAdmin to get display_name from Auth
+  const enrichedDrivers = [];
+
+  for (const profile of profiles) {
+    const { data: userData, error: userError } =
+      await supabaseAdmin.auth.admin.getUserById(profile.id); // <-- now using admin
+
+    if (userError) {
+      console.error("Auth fetch failed for user:", profile.id);
+      continue;
+    }
+
+    const displayName =
+      userData.user.user_metadata?.display_name ||
+      `${userData.user.user_metadata?.first_name || ""} ${
+        userData.user.user_metadata?.last_name || ""
+      }`.trim() ||
+      "No name set";
+
+    enrichedDrivers.push({
+      id: profile.id,
+      display_name: displayName || "No name set",
+    });
+  }
+
+  return res.json(enrichedDrivers);
 };

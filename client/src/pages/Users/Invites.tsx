@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient";
-import Select from "../UiElements/Select";
-import Textbox from "../UiElements/Textbox";
-import Button from "../UiElements/Button"; // Importing the custom Button component
+import Select from "../../components/form/Select";
+import Button from "../UiElements/Button";
+import Input from "../../components/form/input/InputField";
+import { useUser } from "../../hooks/useUser";
+import { useSearch } from "../../context/SearchContext";
+import { useLocation } from "react-router";
 
 interface UserInvite {
   id: string;
@@ -23,14 +26,41 @@ export default function UserTable() {
   const [invites, setInvites] = useState<UserInvite[]>([]);
   const [email, setEmail] = useState("");
   const [position, setPosition] = useState("");
-  const [organizationId, setOrganizationId] = useState("");
   const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const { user, loading: userLoading } = useUser();
+  const [organizationId, setOrganizationId] = useState<string>("");
+  const { search } = useSearch();
+  const { setSearch } = useSearch();
+  const location = useLocation();
+
+  const isPrivileged = ["CEO", "Developer"].includes(user?.position || "");
+
+  useEffect(() => {
+    return () => {
+      if (location.pathname === "/user-invites") {
+        setSearch("");
+      }
+    };
+  }, []);
 
   const fetchInvites = async () => {
-    const { data } = await supabase
+    if (!user) return;
+
+    let query = supabase
       .from("invites")
       .select("*, organizations(name)")
       .order("created_at", { ascending: false });
+
+    if (!isPrivileged) {
+      query = query.eq("organization_id", user.organization_id);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching invites:", error.message);
+      return;
+    }
 
     setInvites(data || []);
   };
@@ -41,7 +71,6 @@ export default function UserTable() {
   };
 
   const handleCreateInvite = async () => {
-    // Validate that email, position, and organization are provided
     if (!email || !position || !organizationId) {
       alert("Please select all fields: Organization, Position, and Email");
       return;
@@ -56,16 +85,34 @@ export default function UserTable() {
         organization_id: organizationId,
       },
     ]);
+
     setEmail("");
     setPosition("");
-    setOrganizationId("");
+    if (!isPrivileged) {
+      setOrganizationId(user?.organization_id || "");
+    } else {
+      setOrganizationId("");
+    }
+
     fetchInvites();
   };
 
+  const filteredInvites = invites.filter((invite) =>
+    invite.email.toLowerCase().includes(search.toLowerCase())
+  );
+
   useEffect(() => {
-    fetchInvites();
     fetchOrganizations();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      if (!isPrivileged) {
+        setOrganizationId(user.organization_id);
+      }
+      fetchInvites();
+    }
+  }, [user]);
 
   return (
     <div className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow w-full">
@@ -73,46 +120,44 @@ export default function UserTable() {
         Invite Users
       </h2>
 
-      {/* Form Fields */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
-        <Textbox
-          label="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          className="w-full"
-        />
+        <div className="w-full">
+          <Input
+            type="email"
+            id="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-400"
+          />
+        </div>
 
-        {/* Position Select */}
-        <Select
-          label="Position"
-          value={position}
-          onChange={(e) => setPosition(e.target.value)}
-          options={[
-            { label: "Select Position", value: "" },
-            { label: "President", value: "President" },
-            { label: "Member", value: "Member" },
-            { label: "Driver", value: "Driver" },
-          ]}
-          className="w-full"
-        />
+        <div className="w-full">
+          <Select
+            onChange={(value) => setPosition(value)}
+            options={[
+              { label: "President", value: "President" },
+              { label: "Member", value: "Member" },
+              { label: "Driver", value: "Driver" },
+            ]}
+            className="mt-1"
+            placeholder="Select Position"
+            defaultValue=""
+          />
+        </div>
 
-        {/* Organization Select */}
         <Select
-          label="Organization"
+          onChange={(value) => setOrganizationId(value)}
+          options={organizations.map((org) => ({
+            label: org.name,
+            value: org.id,
+          }))}
           value={organizationId}
-          onChange={(e) => setOrganizationId(e.target.value)}
-          options={[
-            { label: "Select Organization", value: "" },
-            ...organizations.map((org) => ({
-              label: org.name,
-              value: org.id,
-            })),
-          ]}
-          className="w-full"
+          className="mt-1"
+          placeholder="Select Organization"
+          disabled={!isPrivileged}
         />
 
-        {/* Custom Button for "Generate Invite" */}
         <Button
           onClick={handleCreateInvite}
           variant="primary"
@@ -123,7 +168,6 @@ export default function UserTable() {
         </Button>
       </div>
 
-      {/* Invitations Table */}
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
         <table className="w-full text-sm text-left border-collapse text-gray-800 dark:text-gray-100">
           <thead>
@@ -146,45 +190,56 @@ export default function UserTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-            {invites.map((invite) => (
-              <tr
-                key={invite.id}
-                className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
-              >
-                <td className="px-5 py-4 break-words">{invite.email}</td>
-                <td className="px-5 py-4 break-words">{invite.position}</td>
-                <td className="px-5 py-4 break-words">
-                  {organizations.find(
-                    (org) => org.id === invite.organization_id
-                  )?.name ?? "N/A"}
-                </td>
-                <td className="px-5 py-4">
-                  <span
-                    className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
-                      invite.accepted
-                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
-                    }`}
-                  >
-                    {invite.accepted ? "Accepted" : "Pending"}
-                  </span>
-                </td>
-                <td className="px-5 py-4 break-words">
-                  {invite.accepted ? (
-                    <span className="text-gray-400 italic">Used</span>
-                  ) : (
-                    <a
-                      href={`${window.location.origin}/invite?code=${invite.invite_code}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
+            {filteredInvites.length > 0 ? (
+              filteredInvites.map((invite) => (
+                <tr
+                  key={invite.id}
+                  className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+                >
+                  <td className="px-5 py-4 break-words">{invite.email}</td>
+                  <td className="px-5 py-4 break-words">{invite.position}</td>
+                  <td className="px-5 py-4 break-words">
+                    {organizations.find(
+                      (org) => org.id === invite.organization_id
+                    )?.name ?? "N/A"}
+                  </td>
+                  <td className="px-5 py-4">
+                    <span
+                      className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
+                        invite.accepted
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                          : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
+                      }`}
                     >
-                      {`${window.location.origin}/invite?code=${invite.invite_code}`}
-                    </a>
-                  )}
+                      {invite.accepted ? "Accepted" : "Pending"}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4 break-words">
+                    {invite.accepted ? (
+                      <span className="text-gray-400 italic">Used</span>
+                    ) : (
+                      <a
+                        href={`${window.location.origin}/invite?code=${invite.invite_code}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        {`${window.location.origin}/invite?code=${invite.invite_code}`}
+                      </a>
+                    )}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="text-center py-6 text-gray-500 dark:text-gray-400"
+                >
+                  No invites found.
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>

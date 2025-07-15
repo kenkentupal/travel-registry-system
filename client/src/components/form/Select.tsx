@@ -11,6 +11,8 @@ interface SelectProps {
   onChange: (value: string) => void;
   className?: string;
   defaultValue?: string;
+  value?: string; // ✅ Add this
+  disabled?: boolean; // ✅ Optional: support disabling
 }
 
 const Select: React.FC<SelectProps> = ({
@@ -19,14 +21,19 @@ const Select: React.FC<SelectProps> = ({
   onChange,
   className = "",
   defaultValue = "",
+  value, // ✅ accept controlled value
+  disabled = false, // ✅ default false
 }) => {
-  // Manage the selected value
-  const [selectedValue, setSelectedValue] = useState<string>(defaultValue);
+  const [internalValue, setInternalValue] = useState<string>(defaultValue);
+
+  const selectedValue = value !== undefined ? value : internalValue;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    setSelectedValue(value);
-    onChange(value); // Trigger parent handler
+    const val = e.target.value;
+    if (value === undefined) {
+      setInternalValue(val); // only update internal state if uncontrolled
+    }
+    onChange(val);
   };
 
   return (
@@ -38,8 +45,8 @@ const Select: React.FC<SelectProps> = ({
       } ${className}`}
       value={selectedValue}
       onChange={handleChange}
+      disabled={disabled} // ✅ Apply disabled
     >
-      {/* Placeholder option */}
       <option
         value=""
         disabled
@@ -47,7 +54,7 @@ const Select: React.FC<SelectProps> = ({
       >
         {placeholder}
       </option>
-      {/* Map over options */}
+
       {options.map((option) => (
         <option
           key={option.value}

@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useSearch } from "../../context/SearchContext";
+import Select from "../../components/form/Select";
+import { useUser } from "../../hooks/useUser";
+import { supabase } from "../../supabaseClient";
 
 interface Profiles {
   id: string;
@@ -19,18 +22,31 @@ interface Organization {
 
 export default function List() {
   const [position, setPosition] = useState("");
-  const [organizationId, setOrganizationId] = useState(""); // selected org
-  const [organizations, setOrganizations] = useState<Organization[]>([]); // Stores organizations
-  const [profiles, setProfiles] = useState<Profiles[]>([]); // All profiles
-  const [filteredProfiles, setFilteredProfiles] = useState<Profiles[]>([]); // Filtered profiles based on search
+  const [organizationId, setOrganizationId] = useState("");
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [profiles, setProfiles] = useState<Profiles[]>([]);
+  const [filteredProfiles, setFilteredProfiles] = useState<Profiles[]>([]);
 
+  const { user, loading: userLoading } = useUser();
   const { search } = useSearch();
   const VITE_API_URL = import.meta.env.VITE_API_URL;
 
+  const isPrivileged = ["CEO", "Developer"].includes(user?.position || "");
+
   useEffect(() => {
-    fetchProfiles();
-    fetchOrganizations();
-  }, []);
+    if (!userLoading && user) {
+      if (!isPrivileged) {
+        setOrganizationId(user.organization_id);
+      }
+      fetchOrganizations();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (organizationId || isPrivileged) {
+      fetchProfiles();
+    }
+  }, [organizationId, isPrivileged]);
 
   useEffect(() => {
     filterProfiles();
@@ -38,7 +54,16 @@ export default function List() {
 
   const fetchOrganizations = async () => {
     try {
-      const res = await fetch(`${VITE_API_URL}/api/organizations`);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const res = await fetch(`${VITE_API_URL}/api/organizations`, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+      });
+
       if (!res.ok) throw new Error("Failed to fetch organizations");
       const data = await res.json();
       setOrganizations(data);
@@ -49,8 +74,20 @@ export default function List() {
 
   const fetchProfiles = async () => {
     try {
-      const res = await fetch(`${VITE_API_URL}/api/profiles`);
-      if (!res.ok) throw new Error("Failed to fetch profiles");
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const url = isPrivileged
+        ? `${VITE_API_URL}/api/profiles`
+        : `${VITE_API_URL}/api/profiles?org_id=${organizationId}`;
+
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+      });
+
       const data = await res.json();
       setProfiles(data);
     } catch (error) {
@@ -74,6 +111,7 @@ export default function List() {
 
       return matchesSearch && matchesPosition && matchesOrganization;
     });
+
     setFilteredProfiles(filtered);
   };
 
@@ -84,29 +122,30 @@ export default function List() {
       </h2>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <select
-          value={position}
-          onChange={(e) => setPosition(e.target.value)}
-          className="border px-4 py-2 rounded-md w-full text-gray-800 dark:text-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Select Position</option>
-          <option value="President">President</option>
-          <option value="Member">Member</option>
-          <option value="Driver">Driver</option>
-        </select>
+        <Select
+          onChange={(value) => setPosition(value)}
+          placeholder="Select Position"
+          defaultValue=""
+          options={[
+            { label: "President", value: "President" },
+            { label: "Member", value: "Member" },
+            { label: "Driver", value: "Driver" },
+          ]}
+          className="w-full"
+        />
 
-        <select
+        <Select
+          onChange={(value) => setOrganizationId(value)}
+          placeholder="Select Organization"
+          defaultValue=""
           value={organizationId}
-          onChange={(e) => setOrganizationId(e.target.value)}
-          className="border px-4 py-2 rounded-md w-full text-gray-800 dark:text-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Select Organization</option>
-          {organizations.map((org) => (
-            <option key={org.id} value={org.id}>
-              {org.name}
-            </option>
-          ))}
-        </select>
+          options={organizations.map((org) => ({
+            label: org.name,
+            value: org.id,
+          }))}
+          className="w-full"
+          disabled={!isPrivileged}
+        />
       </div>
 
       {profiles.length === 0 ? (
@@ -117,47 +156,58 @@ export default function List() {
             <table className="w-full text-sm text-left border-collapse text-gray-800 dark:text-gray-100">
               <thead>
                 <tr className="text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-white/10">
-                  <th className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                  <th className="py-2 px-3 font-medium text-gray-500 dark:text-gray-400">
                     Email
                   </th>
-                  <th className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                  <th className="py-2 px-3 font-medium text-gray-500 dark:text-gray-400">
                     Position
                   </th>
-                  <th className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                  <th className="py-2 px-3 font-medium text-gray-500 dark:text-gray-400">
                     Organization
                   </th>
-                  <th className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400">
+                  <th className="py-2 px-3 font-medium text-gray-500 dark:text-gray-400">
                     Created At
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-                {filteredProfiles.map((profile) => {
-                  const organizationName =
-                    organizations.find(
-                      (org) => org.id === profile.organization_id
-                    )?.name ?? "N/A";
+                {filteredProfiles.length > 0 ? (
+                  filteredProfiles.map((profile) => {
+                    const organizationName =
+                      organizations.find(
+                        (org) => org.id === profile.organization_id
+                      )?.name ?? "N/A";
 
-                  return (
-                    <tr
-                      key={profile.id}
-                      className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+                    return (
+                      <tr
+                        key={profile.id}
+                        className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+                      >
+                        <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                          {profile.email}
+                        </td>
+                        <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                          {profile.position}
+                        </td>
+                        <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                          {organizationName}
+                        </td>
+                        <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                          {new Date(profile.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="text-center text-gray-400 py-6 dark:text-white/50"
                     >
-                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                        {profile.email}
-                      </td>
-                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                        {profile.position}
-                      </td>
-                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                        {organizationName}
-                      </td>
-                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                        {new Date(profile.created_at).toLocaleString()}
-                      </td>
-                    </tr>
-                  );
-                })}
+                      No profiles found.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

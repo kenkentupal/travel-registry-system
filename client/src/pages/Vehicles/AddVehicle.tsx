@@ -9,6 +9,11 @@ interface AddVehicleProps {
   onClose: () => void;
 }
 
+interface Organization {
+  id: string;
+  name: string;
+}
+
 export default function AddVehicle({ onClose }: AddVehicleProps) {
   const [formData, setFormData] = useState<any>({});
   const [insuranceFile, setInsuranceFile] = useState<File | null>(null);
@@ -20,51 +25,46 @@ export default function AddVehicle({ onClose }: AddVehicleProps) {
 
   const handleSubmit = async () => {
     setLoading(true);
+    const form = new FormData();
 
-    let insuranceUrl = null;
+    for (const key in formData) {
+      form.append(key, formData[key]);
+    }
 
     if (insuranceFile) {
-      const fileExt = insuranceFile.name.split(".").pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const { data, error } = await supabase.storage
-        .from("insurance-docs")
-        .upload(fileName, insuranceFile);
-
-      if (error) {
-        console.error("Upload error:", error.message);
-        setLoading(false);
-        return;
-      }
-
-      const { data: publicUrl } = supabase.storage
-        .from("insurance-docs")
-        .getPublicUrl(fileName);
-
-      insuranceUrl = publicUrl.publicUrl;
+      form.append("insuranceFile", insuranceFile);
     }
 
-    const { error } = await supabase.from("vehicles").insert([
-      {
-        ...formData,
-        insurance_document: insuranceUrl,
-      },
-    ]);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (error) {
-      console.error("Database error:", error.message);
-    } else {
-      onClose(); // Close modal
+      const token = session?.access_token;
+      if (!token) throw new Error("Unauthorized: No token found.");
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/vehicles`, {
+        method: "POST",
+        body: form,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) throw new Error(result.error || "Vehicle submit failed");
+
+      onClose(); // Success
+    } catch (err: any) {
+      console.error("Vehicle submit error:", err.message);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
     <div>
-      <PageMeta
-        title="React.js Form Elements Dashboard | TailAdmin - React.js Admin Dashboard Template"
-        description="This is React.js Form Elements  Dashboard page for TailAdmin - React.js Tailwind CSS Admin Dashboard Template"
-      />
       <PageBreadcrumb pageTitle="Add Vehicle" />
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-1">
         <div className="space-y-6">
@@ -73,7 +73,7 @@ export default function AddVehicle({ onClose }: AddVehicleProps) {
 
           <button
             onClick={handleSubmit}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition "
             disabled={loading}
           >
             {loading ? "Submitting..." : "Submit Vehicle"}

@@ -1,19 +1,20 @@
 import { useEffect, useState } from "react";
-import AddVehicle from "./AddVehicle";
 import { Link } from "react-router-dom";
-import Select from "../UiElements/Select";
+import AddVehicle from "./AddVehicle";
+import Select from "../../components/form/Select";
+import { useUser } from "../../hooks/useUser";
+import { useSearch } from "../../context/SearchContext";
+import GenerateQR from "./GenerateQR"; // ⬅️ make sure this is imported
 
 interface Vehicle {
   id: number;
   case_number: string;
   plate_number: string;
   vehicle_type: string;
-  contact_number: string;
-  notes?: string;
+
   insurance_document?: string;
   status: string;
-  travel_company: string;
-  driver_name: string;
+
   created_by?: string;
   organization_id: string;
 }
@@ -30,37 +31,59 @@ export default function VehicleTable() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
   const [organizationIdFilter, setOrganizationIdFilter] = useState("");
+  const { search } = useSearch();
+  const { user, loading: userLoading } = useUser();
+  const [qrVehicle, setQrVehicle] = useState<Vehicle | null>(null);
 
   const VITE_API_URL = import.meta.env.VITE_API_URL;
+  const isPrivileged = ["CEO", "Developer"].includes(user?.position || "");
 
   useEffect(() => {
-    const fetchVehicles = async () => {
-      try {
-        const res = await fetch(`${VITE_API_URL}/api/vehicles`);
-        if (!res.ok) throw new Error("Failed to fetch vehicles");
-        const data = await res.json();
-        setVehicles(data);
-      } catch (error) {
-        console.error("Error fetching vehicles", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (user && !isPrivileged) {
+      setOrganizationIdFilter(user.organization_id);
+    }
+  }, [user]);
 
-    const fetchOrganizations = async () => {
-      try {
-        const res = await fetch(`${VITE_API_URL}/api/organizations`);
-        if (!res.ok) throw new Error("Failed to fetch organizations");
-        const data = await res.json();
-        setOrganizations(data);
-      } catch (error) {
-        console.error("Error fetching organizations", error);
-      }
-    };
+  useEffect(() => {
+    if (organizationIdFilter || isPrivileged) fetchVehicles();
+  }, [organizationIdFilter, isPrivileged]);
 
+  useEffect(() => {
     fetchOrganizations();
-    fetchVehicles();
   }, []);
+
+  const fetchVehicles = async () => {
+    try {
+      const res = await fetch(`${VITE_API_URL}/api/vehicles`);
+      if (!res.ok) throw new Error("Failed to fetch vehicles");
+
+      const data = await res.json();
+
+      const filteredByOrg =
+        isPrivileged || organizationIdFilter === ""
+          ? data
+          : data.filter(
+              (v: Vehicle) => v.organization_id === organizationIdFilter
+            );
+
+      setVehicles(filteredByOrg);
+    } catch (error) {
+      console.error("Error fetching vehicles", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchOrganizations = async () => {
+    try {
+      const res = await fetch(`${VITE_API_URL}/api/organizations`);
+      if (!res.ok) throw new Error("Failed to fetch organizations");
+      const data = await res.json();
+      setOrganizations(data);
+    } catch (error) {
+      console.error("Error fetching organizations", error);
+    }
+  };
 
   const filteredVehicles = vehicles.filter((vehicle) => {
     const matchesStatus = statusFilter
@@ -71,7 +94,12 @@ export default function VehicleTable() {
       ? vehicle.organization_id === organizationIdFilter
       : true;
 
-    return matchesStatus && matchesOrganization;
+    const matchesSearch =
+      vehicle.case_number.toLowerCase().includes(search.toLowerCase()) ||
+      vehicle.plate_number.toLowerCase().includes(search.toLowerCase()) ||
+      vehicle.vehicle_type.toLowerCase().includes(search.toLowerCase());
+
+    return matchesStatus && matchesOrganization && matchesSearch;
   });
 
   if (loading) {
@@ -97,17 +125,29 @@ export default function VehicleTable() {
       </div>
 
       {showAddVehicle && (
-        <div className="pt-4">
-          <AddVehicle onClose={() => setShowAddVehicle(false)} />
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-auto px-4 pt-24 pb-12">
+          <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-white/10 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white"></h3>
+              <button
+                onClick={() => setShowAddVehicle(false)}
+                className="text-gray-500 hover:text-gray-800 dark:hover:text-white text-xl"
+              >
+                &times;
+              </button>
+            </div>
+
+            <AddVehicle onClose={() => setShowAddVehicle(false)} />
+          </div>
         </div>
       )}
 
       {/* FILTERS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <Select
-          label="Status"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(value) => setStatusFilter(value)}
+          defaultValue=""
+          placeholder="Select Status"
           options={[
             { label: "All Statuses", value: "" },
             { label: "Approved", value: "Approved" },
@@ -115,11 +155,12 @@ export default function VehicleTable() {
             { label: "Declined", value: "Declined" },
           ]}
         />
-
         <Select
-          label="Organization"
+          onChange={(value) => setOrganizationIdFilter(value)}
+          placeholder="Select Organization"
+          defaultValue=""
           value={organizationIdFilter}
-          onChange={(e) => setOrganizationIdFilter(e.target.value)}
+          disabled={!isPrivileged}
           options={[
             { label: "All Organizations", value: "" },
             ...organizations.map((org) => ({
@@ -130,41 +171,36 @@ export default function VehicleTable() {
         />
       </div>
 
-      {filteredVehicles.length === 0 ? (
-        <p className="text-gray-700 dark:text-gray-300">No vehicles found.</p>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-          <div className="max-w-full">
-            <table className="w-full text-sm text-left border-collapse text-gray-800 dark:text-gray-100">
-              <thead>
-                <tr className="text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-white/10">
-                  {[
-                    "Case No",
-                    "Plate No",
-                    "Vehicle Type",
-                    "Organization",
-                    "Driver",
-                    "Contact No",
-                    "Notes",
-                    "Insurance Document",
-                    "Status",
-                    "QR Code",
-                  ].map((header) => (
-                    <th
-                      key={header}
-                      className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      {header}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-                {filteredVehicles.map((vehicle) => {
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
+        <div className="max-w-full">
+          <table className="w-full text-sm text-left border-collapse text-gray-800 dark:text-gray-100">
+            <thead>
+              <tr className="text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-white/10">
+                {[
+                  "Case No",
+                  "Plate No",
+                  "Vehicle Type",
+                  "Organization",
+                  "Insurance Document",
+                  "Status",
+                  "QR Code",
+                ].map((header) => (
+                  <th
+                    key={header}
+                    className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400"
+                  >
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-white/10">
+              {filteredVehicles.length > 0 ? (
+                filteredVehicles.map((vehicle) => {
                   const organizationName =
                     organizations.find(
                       (org) => org.id === vehicle.organization_id
-                    )?.name ?? "N/A";
+                    )?.name || "N/A";
 
                   return (
                     <tr
@@ -175,11 +211,6 @@ export default function VehicleTable() {
                       <td className="px-5 py-4">{vehicle.plate_number}</td>
                       <td className="px-5 py-4">{vehicle.vehicle_type}</td>
                       <td className="px-5 py-4">{organizationName}</td>
-                      <td className="px-5 py-4">{vehicle.driver_name}</td>
-                      <td className="px-5 py-4">
-                        {vehicle.contact_number || "-"}
-                      </td>
-                      <td className="px-5 py-4">{vehicle.notes || "-"}</td>
                       <td className="px-5 py-4">
                         {vehicle.insurance_document ? (
                           <a
@@ -207,21 +238,58 @@ export default function VehicleTable() {
                           {vehicle.status}
                         </span>
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 space-y-1">
                         <Link
                           to={`/vehicle/${vehicle.id}`}
-                          className="text-blue-600 hover:underline text-sm"
+                          className="block text-sm text-blue-600 hover:underline"
                           target="_blank"
                           rel="noopener noreferrer"
                         >
                           View
                         </Link>
+                        <button
+                          onClick={() => setQrVehicle(vehicle)}
+                          className="block text-sm text-blue-600 hover:underline"
+                        >
+                          Generate QR
+                        </button>
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
+                })
+              ) : (
+                <tr>
+                  <td
+                    colSpan={10}
+                    className="text-center text-gray-400 py-6 dark:text-white/50"
+                  >
+                    No vehicles found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {qrVehicle && (
+        <div className="fixed inset-0 z-40 flex items-start justify-center overflow-auto px-4 pt-24 pb-12">
+          <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-white/10 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                Generate QR
+              </h3>
+              <button
+                onClick={() => setQrVehicle(null)}
+                className="text-gray-500 hover:text-gray-800 dark:hover:text-white text-xl"
+              >
+                &times;
+              </button>
+            </div>
+
+            <GenerateQR
+              vehicleId={qrVehicle.id}
+              onClose={() => setQrVehicle(null)}
+            />
           </div>
         </div>
       )}
