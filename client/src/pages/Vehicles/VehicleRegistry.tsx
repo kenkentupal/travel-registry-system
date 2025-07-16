@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { supabase } from "../../supabaseClient";
+
+// Components
 import AddVehicle from "./AddVehicle";
+import GenerateQR from "./GenerateQR";
 import Select from "../../components/form/Select";
+
+// Contexts & Hooks
 import { useUser } from "../../hooks/useUser";
 import { useSearch } from "../../context/SearchContext";
-import GenerateQR from "./GenerateQR"; // ⬅️ make sure this is imported
 
+// Types
 interface Vehicle {
   id: number;
   case_number: string;
   plate_number: string;
   vehicle_type: string;
-
   insurance_document?: string;
   status: string;
-
   created_by?: string;
   organization_id: string;
 }
@@ -24,40 +28,75 @@ interface Organization {
   name: string;
 }
 
+async function fetchAssignmentStatus(
+  vehicleId: number,
+  token: string,
+  apiUrl: string
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${apiUrl}/api/qrcode/${vehicleId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 404) return false;
+    if (!res.ok) {
+      const message = await res.text();
+      console.warn(`Unexpected response for vehicle ${vehicleId}:`, message);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.error(`Error fetching QR for vehicle ${vehicleId}:`, err);
+    return false;
+  }
+}
+
 export default function VehicleTable() {
+  // State
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [assignments, setAssignments] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [qrVehicle, setQrVehicle] = useState<Vehicle | null>(null);
+
   const [statusFilter, setStatusFilter] = useState("");
   const [organizationIdFilter, setOrganizationIdFilter] = useState("");
-  const { search } = useSearch();
+
   const { user, loading: userLoading } = useUser();
-  const [qrVehicle, setQrVehicle] = useState<Vehicle | null>(null);
+  const { search } = useSearch();
 
   const VITE_API_URL = import.meta.env.VITE_API_URL;
   const isPrivileged = ["CEO", "Developer"].includes(user?.position || "");
 
+  // Set org filter if not privileged
   useEffect(() => {
     if (user && !isPrivileged) {
       setOrganizationIdFilter(user.organization_id);
     }
   }, [user]);
 
+  // Fetch vehicles when filters are ready
   useEffect(() => {
-    if (organizationIdFilter || isPrivileged) fetchVehicles();
+    if (organizationIdFilter || isPrivileged) {
+      fetchVehicles();
+    }
   }, [organizationIdFilter, isPrivileged]);
 
+  // Fetch organizations on load
   useEffect(() => {
     fetchOrganizations();
   }, []);
 
+  // Fetch all vehicles
   const fetchVehicles = async () => {
     try {
       const res = await fetch(`${VITE_API_URL}/api/vehicles`);
       if (!res.ok) throw new Error("Failed to fetch vehicles");
-
-      const data = await res.json();
+      const data: Vehicle[] = await res.json();
 
       const filteredByOrg =
         isPrivileged || organizationIdFilter === ""
@@ -67,13 +106,36 @@ export default function VehicleTable() {
             );
 
       setVehicles(filteredByOrg);
+
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      if (!token) {
+        console.warn("[VehicleTable] No Supabase access token found.");
+        return;
+      }
+
+      const assignmentStatusEntries = await Promise.all(
+        filteredByOrg.map(async (vehicle) => {
+          const status = await fetchAssignmentStatus(
+            vehicle.id,
+            token,
+            VITE_API_URL
+          );
+          return [vehicle.id, status] as const;
+        })
+      );
+
+      const assignmentStatus = Object.fromEntries(assignmentStatusEntries);
+      setAssignments(assignmentStatus);
     } catch (error) {
-      console.error("Error fetching vehicles", error);
+      console.error("🚨 [VehicleTable] Failed to fetch vehicles:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  // Fetch organizations
   const fetchOrganizations = async () => {
     try {
       const res = await fetch(`${VITE_API_URL}/api/organizations`);
@@ -85,6 +147,7 @@ export default function VehicleTable() {
     }
   };
 
+  // Filtered vehicles
   const filteredVehicles = vehicles.filter((vehicle) => {
     const matchesStatus = statusFilter
       ? vehicle.status.toLowerCase() === statusFilter.toLowerCase()
@@ -102,6 +165,7 @@ export default function VehicleTable() {
     return matchesStatus && matchesOrganization && matchesSearch;
   });
 
+  // Loading state
   if (loading) {
     return (
       <div className="p-6 text-gray-600 dark:text-gray-300">
@@ -112,6 +176,7 @@ export default function VehicleTable() {
 
   return (
     <div className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow w-full">
+      {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-medium text-gray-800 dark:text-white">
           Vehicles
@@ -124,11 +189,12 @@ export default function VehicleTable() {
         </button>
       </div>
 
+      {/* Add Vehicle Modal */}
       {showAddVehicle && (
         <div className="fixed inset-0 z-40 flex items-start justify-center overflow-auto px-4 pt-24 pb-12">
           <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-white/10 p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white"></h3>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white" />
               <button
                 onClick={() => setShowAddVehicle(false)}
                 className="text-gray-500 hover:text-gray-800 dark:hover:text-white text-xl"
@@ -136,13 +202,12 @@ export default function VehicleTable() {
                 &times;
               </button>
             </div>
-
             <AddVehicle onClose={() => setShowAddVehicle(false)} />
           </div>
         </div>
       )}
 
-      {/* FILTERS */}
+      {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <Select
           onChange={(value) => setStatusFilter(value)}
@@ -171,6 +236,7 @@ export default function VehicleTable() {
         />
       </div>
 
+      {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
         <div className="max-w-full">
           <table className="w-full text-sm text-left border-collapse text-gray-800 dark:text-gray-100">
@@ -239,20 +305,27 @@ export default function VehicleTable() {
                         </span>
                       </td>
                       <td className="px-5 py-4 space-y-1">
-                        <Link
-                          to={`/vehicle/${vehicle.id}`}
-                          className="block text-sm text-blue-600 hover:underline"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          View
-                        </Link>
-                        <button
-                          onClick={() => setQrVehicle(vehicle)}
-                          className="block text-sm text-blue-600 hover:underline"
-                        >
-                          Generate QR
-                        </button>
+                        {/* View Button (only if assignment exists) */}
+                        {assignments[vehicle.id] ? (
+                          <Link
+                            to={`/vehicle/${vehicle.id}`}
+                            className="block text-sm text-blue-600 hover:underline"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            View
+                          </Link>
+                        ) : null}
+
+                        {/* Generate QR only if no assignment yet */}
+                        {!assignments[vehicle.id] && (
+                          <button
+                            onClick={() => setQrVehicle(vehicle)}
+                            className="block text-sm text-blue-600 hover:underline"
+                          >
+                            Generate QR
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -271,6 +344,8 @@ export default function VehicleTable() {
           </table>
         </div>
       </div>
+
+      {/* QR Modal */}
       {qrVehicle && (
         <div className="fixed inset-0 z-40 flex items-start justify-center overflow-auto px-4 pt-24 pb-12">
           <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-white/10 p-6">
@@ -285,7 +360,6 @@ export default function VehicleTable() {
                 &times;
               </button>
             </div>
-
             <GenerateQR
               vehicleId={qrVehicle.id}
               onClose={() => setQrVehicle(null)}
