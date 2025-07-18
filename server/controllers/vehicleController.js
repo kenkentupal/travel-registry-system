@@ -125,3 +125,31 @@ export const fetchVehicleById = async (req, res) => {
 
   res.json(data);
 };
+export const updateVehicleStatus = async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+  const supabase = createSupabaseClient(token);
+  const { vehicleId } = req.params;
+  const { status } = req.body;
+
+  if (!["Approved", "Declined"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status" });
+  }
+
+  try {
+    const { error } = await supabase
+      .from("vehicles")
+      .update({ status })
+      .eq("id", vehicleId);
+
+    if (error) throw error;
+
+    return res
+      .status(200)
+      .json({ message: `Vehicle status updated to ${status}` });
+  } catch (err) {
+    console.error("Status update failed:", err.message);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};

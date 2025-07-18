@@ -3,6 +3,7 @@ import { useSearch } from "../../context/SearchContext";
 import Select from "../../components/form/Select";
 import { useUser } from "../../hooks/useUser";
 import { supabase } from "../../supabaseClient";
+import PaginatedTable from "../UiElements/PaginatedTable"; // adjust path if needed
 
 interface Profiles {
   id: string;
@@ -151,67 +152,50 @@ export default function List() {
       {profiles.length === 0 ? (
         <p className="text-gray-700 dark:text-gray-300">Loading profiles...</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-          <div className="max-w-full">
-            <table className="w-full text-sm text-left border-collapse text-gray-800 dark:text-gray-100">
-              <thead>
-                <tr className="text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-white/10">
-                  <th className="py-2 px-3 font-medium text-gray-500 dark:text-gray-400">
-                    Email
-                  </th>
-                  <th className="py-2 px-3 font-medium text-gray-500 dark:text-gray-400">
-                    Position
-                  </th>
-                  <th className="py-2 px-3 font-medium text-gray-500 dark:text-gray-400">
-                    Organization
-                  </th>
-                  <th className="py-2 px-3 font-medium text-gray-500 dark:text-gray-400">
-                    Created At
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-                {filteredProfiles.length > 0 ? (
-                  filteredProfiles.map((profile) => {
-                    const organizationName =
-                      organizations.find(
-                        (org) => org.id === profile.organization_id
-                      )?.name ?? "N/A";
-
-                    return (
-                      <tr
-                        key={profile.id}
-                        className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
-                      >
-                        <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                          {profile.email}
-                        </td>
-                        <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                          {profile.position}
-                        </td>
-                        <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                          {organizationName}
-                        </td>
-                        <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                          {new Date(profile.created_at).toLocaleString()}
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="text-center text-gray-400 py-6 dark:text-white/50"
-                    >
-                      No profiles found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <PaginatedTable
+          data={filteredProfiles}
+          itemsPerPage={10}
+          columns={[
+            {
+              label: "Email",
+              render: (profile) => (
+                <span className="text-gray-700 dark:text-gray-300">
+                  {profile.email}
+                </span>
+              ),
+            },
+            {
+              label: "Position",
+              render: (profile) => (
+                <span className="text-gray-700 dark:text-gray-300">
+                  {profile.position}
+                </span>
+              ),
+            },
+            {
+              label: "Organization",
+              render: (profile) => {
+                const orgName =
+                  organizations.find(
+                    (org) => org.id === profile.organization_id
+                  )?.name ?? "N/A";
+                return (
+                  <span className="text-gray-700 dark:text-gray-300">
+                    {orgName}
+                  </span>
+                );
+              },
+            },
+            {
+              label: "Created At",
+              render: (profile) => (
+                <span className="text-gray-700 dark:text-gray-300">
+                  {new Date(profile.created_at).toLocaleString()}
+                </span>
+              ),
+            },
+          ]}
+        />
       )}
     </div>
   );

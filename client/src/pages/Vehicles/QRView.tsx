@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { QRCodeCanvas } from "qrcode.react";
-import { supabase } from "../../supabaseClient";
 import GridShape from "../../components/common/GridShape";
 
 const VITE_API_URL = import.meta.env.VITE_API_URL;
 
+/* ---------- types ---------- */
 interface Vehicle {
   id: number;
   case_number: string;
@@ -13,62 +13,45 @@ interface Vehicle {
   vehicle_type: string;
   travel_company: string;
   driver_name: string;
-  contact_number: string;
   notes?: string;
   insurance_document?: string;
   status: string;
   organization_id: string;
 }
-
 interface Assignment {
   destination: string;
   purpose: string;
-  departure_time: string;
-  arrival_time: string | null;
+
   notes: string | null;
-  status: string;
-  profiles?: {
-    display_name: string;
-  };
-  organizations?: {
-    name: string;
-  };
+  profiles?: { display_name: string };
+  organizations?: { name: string };
 }
 
+/* ---------- component ---------- */
 export default function QRView() {
   const { id } = useParams();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /* fetch vehicle + (latest) assignment — no auth headers */
   useEffect(() => {
     const fetchDetails = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        if (!token) throw new Error("Unauthorized");
+        // --- vehicle ---
+        const vRes = await fetch(`${VITE_API_URL}/api/vehicles/${id}`);
+        const vData = await vRes.json();
+        if (!vRes.ok) throw new Error(vData.error || "Vehicle not found");
+        setVehicle(vData);
 
-        // Fetch vehicle
-        const vehicleRes = await fetch(`${VITE_API_URL}/api/vehicles/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const vehicleData = await vehicleRes.json();
-        if (!vehicleRes.ok)
-          throw new Error(vehicleData.error || "Vehicle not found");
-        setVehicle(vehicleData);
-
-        // Fetch assignment (includes profile + org)
-        const assignmentRes = await fetch(`${VITE_API_URL}/api/qrcode/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (assignmentRes.ok) {
-          const assignmentData = await assignmentRes.json();
-          setAssignment(assignmentData);
+        // --- assignment (might be 404 if none exists) ---
+        const aRes = await fetch(`${VITE_API_URL}/api/qrcode/${id}`);
+        if (aRes.ok) {
+          const aData = await aRes.json();
+          setAssignment(aData);
         }
-      } catch (error) {
-        console.error("Error loading QR view:", error);
+      } catch (err) {
+        console.error("Error loading QR view:", err);
       } finally {
         setLoading(false);
       }
@@ -77,6 +60,7 @@ export default function QRView() {
     if (id) fetchDetails();
   }, [id]);
 
+  /* ------------ render ------------ */
   if (loading) return <div className="p-8 text-gray-600">Loading...</div>;
   if (!vehicle)
     return (
@@ -114,12 +98,7 @@ export default function QRView() {
             <strong>Driver:</strong>{" "}
             {assignment?.profiles?.display_name || vehicle.driver_name}
           </p>
-          <p>
-            <strong>Contact:</strong> {vehicle.contact_number}
-          </p>
-          <p>
-            <strong>Status:</strong> {vehicle.status}
-          </p>
+
           {vehicle.notes && (
             <p>
               <strong>Notes:</strong> {vehicle.notes}
@@ -140,6 +119,7 @@ export default function QRView() {
           )}
         </div>
 
+        {/* Assignment block (optional) */}
         {assignment ? (
           <div className="mt-6 p-4 border border-blue-200 dark:border-blue-700 rounded bg-blue-50 dark:bg-blue-900/20 text-sm text-left text-blue-900 dark:text-blue-100">
             <h2 className="font-semibold mb-2">Assignment Details</h2>
@@ -151,13 +131,6 @@ export default function QRView() {
             </p>
             <p>
               <strong>Notes:</strong> {assignment.notes}
-            </p>
-            <p>
-              <strong>Departure:</strong>{" "}
-              {new Date(assignment.departure_time).toLocaleString()}
-            </p>
-            <p>
-              <strong>Status:</strong> {assignment.status}
             </p>
           </div>
         ) : (

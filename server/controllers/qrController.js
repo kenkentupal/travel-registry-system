@@ -59,14 +59,10 @@ export const generateQRCode = async (req, res) => {
 };
 
 export const getVehicleAssignment = async (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
-
-  const supabase = createSupabaseClient(token);
   const { vehicleId } = req.params;
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("vehicle_assignments")
       .select(
         `
@@ -86,20 +82,22 @@ export const getVehicleAssignment = async (req, res) => {
 
     const assignment = data[0];
 
-    // Fetch driver display_name from Supabase Auth
-    const { data: userData, error: userError } =
-      await supabaseAdmin.auth.admin.getUserById(assignment.driver_id);
+    // Look up display name from Supabase Auth (admin access)
+    let displayName = "Unknown driver";
+    try {
+      const { data: userData, error: userError } =
+        await supabaseAdmin.auth.admin.getUserById(assignment.driver_id);
 
-    if (userError) {
-      console.warn("⚠️ Failed to fetch driver info:", userError.message);
+      if (!userError && userData?.user) {
+        const metadata = userData.user.user_metadata;
+        displayName =
+          metadata?.display_name ||
+          `${metadata?.first_name || ""} ${metadata?.last_name || ""}`.trim() ||
+          "No name set";
+      }
+    } catch (err) {
+      console.warn("⚠️ Failed to fetch driver display name");
     }
-
-    const displayName =
-      userData?.user?.user_metadata?.display_name ||
-      `${userData?.user?.user_metadata?.first_name || ""} ${
-        userData?.user?.user_metadata?.last_name || ""
-      }`.trim() ||
-      "No name set";
 
     return res.status(200).json({
       ...assignment,
@@ -109,6 +107,47 @@ export const getVehicleAssignment = async (req, res) => {
     });
   } catch (err) {
     console.error("🚨 Supabase error:", err.message);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const deleteVehicleAssignment = async (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+  const supabase = createSupabaseClient(token);
+  const { vehicleId } = req.params;
+
+  try {
+    // Find latest assignment for the vehicle
+    const { data: assignment, error: fetchError } = await supabase
+      .from("vehicle_assignments")
+      .select("id, generated_by")
+      .eq("vehicle_id", vehicleId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (fetchError || !assignment)
+      return res.status(404).json({ error: "Assignment not found" });
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (assignment.generated_by !== user.id)
+      return res.status(403).json({ error: "Forbidden" });
+
+    const { error: deleteError } = await supabase
+      .from("vehicle_assignments")
+      .delete()
+      .eq("id", assignment.id);
+
+    if (deleteError) throw deleteError;
+
+    return res.status(200).json({ message: "Assignment deleted" });
+  } catch (err) {
+    console.error("Error deleting assignment:", err.message);
     return res.status(500).json({ error: "Internal server error" });
   }
 };

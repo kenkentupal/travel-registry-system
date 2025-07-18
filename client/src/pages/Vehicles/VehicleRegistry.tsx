@@ -2,16 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 
-// Components
 import AddVehicle from "./AddVehicle";
 import GenerateQR from "./GenerateQR";
 import Select from "../../components/form/Select";
+import PaginatedTable from "../UiElements/PaginatedTable";
 
-// Contexts & Hooks
 import { useUser } from "../../hooks/useUser";
 import { useSearch } from "../../context/SearchContext";
 
-// Types
 interface Vehicle {
   id: number;
   case_number: string;
@@ -55,43 +53,36 @@ async function fetchAssignmentStatus(
 }
 
 export default function VehicleTable() {
-  // State
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [assignments, setAssignments] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
   const [qrVehicle, setQrVehicle] = useState<Vehicle | null>(null);
-
   const [statusFilter, setStatusFilter] = useState("");
   const [organizationIdFilter, setOrganizationIdFilter] = useState("");
 
   const { user, loading: userLoading } = useUser();
   const { search } = useSearch();
-
   const VITE_API_URL = import.meta.env.VITE_API_URL;
   const isPrivileged = ["CEO", "Developer"].includes(user?.position || "");
 
-  // Set org filter if not privileged
   useEffect(() => {
     if (user && !isPrivileged) {
       setOrganizationIdFilter(user.organization_id);
     }
   }, [user]);
 
-  // Fetch vehicles when filters are ready
   useEffect(() => {
     if (organizationIdFilter || isPrivileged) {
       fetchVehicles();
     }
   }, [organizationIdFilter, isPrivileged]);
 
-  // Fetch organizations on load
   useEffect(() => {
     fetchOrganizations();
   }, []);
 
-  // Fetch all vehicles
   const fetchVehicles = async () => {
     try {
       const res = await fetch(`${VITE_API_URL}/api/vehicles`);
@@ -109,11 +100,7 @@ export default function VehicleTable() {
 
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
-
-      if (!token) {
-        console.warn("[VehicleTable] No Supabase access token found.");
-        return;
-      }
+      if (!token) return;
 
       const assignmentStatusEntries = await Promise.all(
         filteredByOrg.map(async (vehicle) => {
@@ -126,16 +113,14 @@ export default function VehicleTable() {
         })
       );
 
-      const assignmentStatus = Object.fromEntries(assignmentStatusEntries);
-      setAssignments(assignmentStatus);
+      setAssignments(Object.fromEntries(assignmentStatusEntries));
     } catch (error) {
-      console.error("🚨 [VehicleTable] Failed to fetch vehicles:", error);
+      console.error("[VehicleTable] Failed to fetch vehicles:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch organizations
   const fetchOrganizations = async () => {
     try {
       const res = await fetch(`${VITE_API_URL}/api/organizations`);
@@ -147,7 +132,62 @@ export default function VehicleTable() {
     }
   };
 
-  // Filtered vehicles
+  const handleDeleteAssignment = async (vehicleId: number) => {
+    if (!confirm("Are you sure you want to delete this QR assignment?")) return;
+
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token;
+    if (!token) return alert("You must be logged in.");
+
+    try {
+      const res = await fetch(`${VITE_API_URL}/api/qrcode/${vehicleId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) throw new Error("Failed to delete assignment");
+
+      alert("Deleted successfully.");
+      fetchVehicles();
+    } catch (error) {
+      console.error("Delete error:", error);
+    }
+  };
+
+  const handleUpdateStatus = async (
+    vehicleId: number,
+    status: "Approved" | "Declined"
+  ) => {
+    if (!confirm(`Confirm to ${status.toLowerCase()} this vehicle?`)) return;
+
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token;
+    if (!token) return alert("Authentication required.");
+
+    try {
+      const res = await fetch(
+        `${VITE_API_URL}/api/vehicles/${vehicleId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status }),
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to update status");
+
+      alert(`Vehicle ${status.toLowerCase()} successfully.`);
+      fetchVehicles();
+    } catch (err) {
+      console.error("Status update failed:", err);
+    }
+  };
+
   const filteredVehicles = vehicles.filter((vehicle) => {
     const matchesStatus = statusFilter
       ? vehicle.status.toLowerCase() === statusFilter.toLowerCase()
@@ -165,7 +205,96 @@ export default function VehicleTable() {
     return matchesStatus && matchesOrganization && matchesSearch;
   });
 
-  // Loading state
+  const columns = [
+    { label: "Case No", render: (v: Vehicle) => v.case_number },
+    { label: "Plate No", render: (v: Vehicle) => v.plate_number },
+    { label: "Vehicle Type", render: (v: Vehicle) => v.vehicle_type },
+    {
+      label: "Organization",
+      render: (v: Vehicle) =>
+        organizations.find((org) => org.id === v.organization_id)?.name ??
+        "N/A",
+    },
+    {
+      label: "Insurance",
+      render: (v: Vehicle) =>
+        v.insurance_document ? (
+          <a
+            href={v.insurance_document}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 underline text-xs"
+          >
+            View
+          </a>
+        ) : (
+          <span className="text-gray-400 italic text-xs">None</span>
+        ),
+    },
+    {
+      label: "Status",
+      render: (v: Vehicle) => (
+        <span
+          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold capitalize ${
+            v.status === "Approved"
+              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+              : v.status === "Pending"
+              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+              : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+          }`}
+        >
+          {v.status}
+        </span>
+      ),
+    },
+    {
+      label: "Actions",
+      render: (v: Vehicle) =>
+        v.status === "Pending" ? (
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleUpdateStatus(v.id, "Approved")}
+              className="bg-green-600 text-white text-xs px-3 py-1 rounded"
+            >
+              Approve
+            </button>
+            <button
+              onClick={() => handleUpdateStatus(v.id, "Declined")}
+              className="bg-red-600 text-white text-xs px-3 py-1 rounded"
+            >
+              Decline
+            </button>
+          </div>
+        ) : v.status === "Approved" ? (
+          assignments[v.id] ? (
+            <div className="flex gap-2">
+              <Link
+                to={`/vehicle/${v.id}`}
+                className="bg-blue-600 text-white text-xs px-3 py-1 rounded"
+              >
+                View
+              </Link>
+              <button
+                onClick={() => handleDeleteAssignment(v.id)}
+                className="bg-red-600 text-white text-xs px-3 py-1 rounded"
+              >
+                Delete
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setQrVehicle(v)}
+              className="bg-blue-500 text-white text-xs px-3 py-1 rounded"
+            >
+              Generate QR
+            </button>
+          )
+        ) : (
+          <span className="text-gray-400 italic text-xs">No actions</span>
+        ),
+    },
+  ];
+
   if (loading) {
     return (
       <div className="p-6 text-gray-600 dark:text-gray-300">
@@ -176,25 +305,25 @@ export default function VehicleTable() {
 
   return (
     <div className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow w-full">
-      {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-medium text-gray-800 dark:text-white">
           Vehicles
         </h2>
         <button
           onClick={() => setShowAddVehicle(!showAddVehicle)}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm"
         >
           {showAddVehicle ? "Close" : "Add Vehicle"}
         </button>
       </div>
 
-      {/* Add Vehicle Modal */}
       {showAddVehicle && (
         <div className="fixed inset-0 z-40 flex items-start justify-center overflow-auto px-4 pt-24 pb-12">
           <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-white/10 p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white" />
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                Add Vehicle
+              </h3>
               <button
                 onClick={() => setShowAddVehicle(false)}
                 className="text-gray-500 hover:text-gray-800 dark:hover:text-white text-xl"
@@ -207,7 +336,6 @@ export default function VehicleTable() {
         </div>
       )}
 
-      {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <Select
           onChange={(value) => setStatusFilter(value)}
@@ -222,8 +350,8 @@ export default function VehicleTable() {
         />
         <Select
           onChange={(value) => setOrganizationIdFilter(value)}
-          placeholder="Select Organization"
           defaultValue=""
+          placeholder="Select Organization"
           value={organizationIdFilter}
           disabled={!isPrivileged}
           options={[
@@ -236,116 +364,12 @@ export default function VehicleTable() {
         />
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-        <div className="max-w-full">
-          <table className="w-full text-sm text-left border-collapse text-gray-800 dark:text-gray-100">
-            <thead>
-              <tr className="text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-white/10">
-                {[
-                  "Case No",
-                  "Plate No",
-                  "Vehicle Type",
-                  "Organization",
-                  "Insurance Document",
-                  "Status",
-                  "QR Code",
-                ].map((header) => (
-                  <th
-                    key={header}
-                    className="py-2 px-3 text-left text-sm font-medium text-gray-500 dark:text-gray-400"
-                  >
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-              {filteredVehicles.length > 0 ? (
-                filteredVehicles.map((vehicle) => {
-                  const organizationName =
-                    organizations.find(
-                      (org) => org.id === vehicle.organization_id
-                    )?.name || "N/A";
+      <PaginatedTable
+        data={filteredVehicles}
+        columns={columns}
+        itemsPerPage={10}
+      />
 
-                  return (
-                    <tr
-                      key={vehicle.id}
-                      className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
-                    >
-                      <td className="px-5 py-4">{vehicle.case_number}</td>
-                      <td className="px-5 py-4">{vehicle.plate_number}</td>
-                      <td className="px-5 py-4">{vehicle.vehicle_type}</td>
-                      <td className="px-5 py-4">{organizationName}</td>
-                      <td className="px-5 py-4">
-                        {vehicle.insurance_document ? (
-                          <a
-                            href={vehicle.insurance_document}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-500 underline"
-                          >
-                            View
-                          </a>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={`inline-block rounded-full px-3 py-1 text-xs font-medium ${
-                            vehicle.status === "Approved"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                              : vehicle.status === "Pending"
-                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
-                              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
-                          }`}
-                        >
-                          {vehicle.status}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 space-y-1">
-                        {/* View Button (only if assignment exists) */}
-                        {assignments[vehicle.id] ? (
-                          <Link
-                            to={`/vehicle/${vehicle.id}`}
-                            className="block text-sm text-blue-600 hover:underline"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            View
-                          </Link>
-                        ) : null}
-
-                        {/* Generate QR only if no assignment yet */}
-                        {!assignments[vehicle.id] && (
-                          <button
-                            onClick={() => setQrVehicle(vehicle)}
-                            className="block text-sm text-blue-600 hover:underline"
-                          >
-                            Generate QR
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td
-                    colSpan={10}
-                    className="text-center text-gray-400 py-6 dark:text-white/50"
-                  >
-                    No vehicles found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* QR Modal */}
       {qrVehicle && (
         <div className="fixed inset-0 z-40 flex items-start justify-center overflow-auto px-4 pt-24 pb-12">
           <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-900 shadow-2xl border border-gray-200 dark:border-white/10 p-6">

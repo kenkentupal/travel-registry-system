@@ -4,6 +4,7 @@ import { Trash } from "lucide-react";
 import Button from "../UiElements/Button";
 import Input from "../../components/form/input/InputField";
 import { useSearch } from "../../context/SearchContext";
+import PaginatedTable from "../UiElements/PaginatedTable";
 
 interface Organization {
   id: string;
@@ -28,6 +29,78 @@ export default function OrganizationTable() {
   const [editDescription, setEditDescription] = useState("");
 
   const { search } = useSearch();
+
+  const columns = [
+    {
+      label: "Name",
+      render: (org: Organization) =>
+        editId === org.id ? (
+          <input
+            type="text"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            className="border rounded px-2 py-1 w-full"
+          />
+        ) : (
+          org.name
+        ),
+    },
+    {
+      label: "Description",
+      render: (org: Organization) =>
+        editId === org.id ? (
+          <input
+            type="text"
+            value={editDescription}
+            onChange={(e) => setEditDescription(e.target.value)}
+            className="border rounded px-2 py-1 w-full"
+          />
+        ) : (
+          org.description || "-"
+        ),
+    },
+    {
+      label: "Created At",
+      render: (org: Organization) => new Date(org.created_at).toLocaleString(),
+    },
+    {
+      label: "Actions",
+      render: (org: Organization) =>
+        editId === org.id ? (
+          <div className="flex gap-2">
+            <button
+              onClick={saveEdit}
+              className="inline-flex items-center justify-center rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700 transition"
+            >
+              Save
+            </button>
+            <button
+              onClick={cancelEditing}
+              className="inline-flex items-center justify-center rounded-md bg-gray-500 px-3 py-1 text-xs font-medium text-white hover:bg-gray-600 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => startEditing(org)}
+              className="inline-flex items-center justify-center rounded-md bg-blue-500 px-3 py-1 text-xs font-medium text-white hover:bg-blue-600 transition"
+            >
+              Edit
+            </button>
+            {(position === "CEO" || position === "Developer") && (
+              <button
+                onClick={() => handleDelete(org.id)}
+                className="inline-flex items-center justify-center rounded-md bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-blue-600 transition"
+              >
+                <Trash className="w-4 h-4" /> Delete
+              </button>
+            )}
+          </div>
+        ),
+    },
+  ];
 
   useEffect(() => {
     const getSession = async () => {
@@ -221,102 +294,11 @@ export default function OrganizationTable() {
           Loading organizations...
         </p>
       ) : (
-        <div className="overflow-x-auto w-full">
-          <table className="w-full min-w-[600px] text-sm border-collapse table-fixed text-gray-800 dark:text-gray-100">
-            <thead>
-              <tr className="text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-white/10">
-                <th className="py-2 px-3 text-left w-[200px]">Name</th>
-                <th className="py-2 px-3 text-left">Description</th>
-                <th className="py-2 px-3 text-left">Created At</th>
-                <th className="py-2 px-3 text-left">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-white/10">
-              {filteredOrgs.length > 0 ? (
-                filteredOrgs.map((org) => (
-                  <tr
-                    key={org.id}
-                    className="hover:bg-gray-50 dark:hover:bg-white/[0.02]"
-                  >
-                    <td className="px-5 py-4">
-                      {editId === org.id ? (
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="border rounded px-2 py-1 w-full"
-                        />
-                      ) : (
-                        org.name
-                      )}
-                    </td>
-                    <td className="px-5 py-4 truncate max-w-[200px]">
-                      {editId === org.id ? (
-                        <input
-                          type="text"
-                          value={editDescription}
-                          onChange={(e) => setEditDescription(e.target.value)}
-                          className="border rounded px-2 py-1 w-full"
-                        />
-                      ) : (
-                        org.description || "-"
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-xs">
-                      {new Date(org.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-5 py-4 space-x-2">
-                      {editId === org.id ? (
-                        <>
-                          <button
-                            onClick={saveEdit}
-                            className="text-green-600 text-sm hover:underline"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={cancelEditing}
-                            className="text-gray-600 text-sm hover:underline"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => startEditing(org)}
-                            className="text-blue-600 text-sm hover:underline"
-                          >
-                            Edit
-                          </button>
-
-                          {(position === "CEO" || position === "Developer") && (
-                            <button
-                              onClick={() => handleDelete(org.id)}
-                              className="text-red-600 hover:text-red-700 transition text-sm inline-flex items-center gap-1"
-                            >
-                              <Trash className="w-4 h-4" />
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="text-center text-gray-400 py-6 dark:text-white/50"
-                  >
-                    No organizations found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <PaginatedTable
+          data={filteredOrgs}
+          columns={columns}
+          itemsPerPage={10}
+        />
       )}
     </div>
   );
