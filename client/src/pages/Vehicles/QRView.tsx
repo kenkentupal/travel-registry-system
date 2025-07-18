@@ -1,11 +1,16 @@
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { QRCodeCanvas } from "qrcode.react";
 import GridShape from "../../components/common/GridShape";
 
+// Logos and background
+import bg from "../../assets/tvtap_bg.png";
+import dotr from "../../assets/dotr.png";
+import bp from "../../assets/bagongpilipinas.png";
+import tvtap from "../../assets/tvtap_logo.png";
+
 const VITE_API_URL = import.meta.env.VITE_API_URL;
 
-/* ---------- types ---------- */
 interface Vehicle {
   id: number;
   case_number: string;
@@ -18,33 +23,30 @@ interface Vehicle {
   status: string;
   organization_id: string;
 }
+
 interface Assignment {
   destination: string;
   purpose: string;
-
   notes: string | null;
   profiles?: { display_name: string };
   organizations?: { name: string };
 }
 
-/* ---------- component ---------- */
 export default function QRView() {
   const { id } = useParams();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(true);
+  const qrRef = useRef<HTMLCanvasElement>(null);
 
-  /* fetch vehicle + (latest) assignment — no auth headers */
   useEffect(() => {
     const fetchDetails = async () => {
       try {
-        // --- vehicle ---
         const vRes = await fetch(`${VITE_API_URL}/api/vehicles/${id}`);
         const vData = await vRes.json();
         if (!vRes.ok) throw new Error(vData.error || "Vehicle not found");
         setVehicle(vData);
 
-        // --- assignment (might be 404 if none exists) ---
         const aRes = await fetch(`${VITE_API_URL}/api/qrcode/${id}`);
         if (aRes.ok) {
           const aData = await aRes.json();
@@ -60,7 +62,6 @@ export default function QRView() {
     if (id) fetchDetails();
   }, [id]);
 
-  /* ------------ render ------------ */
   if (loading) return <div className="p-8 text-gray-600">Loading...</div>;
   if (!vehicle)
     return (
@@ -69,94 +70,96 @@ export default function QRView() {
 
   const qrValue = `${window.location.origin}/vehicle/${vehicle.id}`;
 
+  const handleDownloadQR = () => {
+    const canvas = qrRef.current;
+    if (!canvas) return;
+
+    const url = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `vehicle-${vehicle.plate_number}-QR.png`;
+    link.click();
+  };
+
+  const renderField = (label: string, value?: string | null) => {
+    if (!value) return null;
+    return (
+      <div className="border border-dashed border-gray-300 rounded p-2">
+        <label className="block text-sm text-gray-600 font-small">
+          {label}
+        </label>
+        <p className="font-semibold text-lg tracking-wide ">{value}</p>
+      </div>
+    );
+  };
+
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen p-6 overflow-hidden z-1">
+    <div
+      className="relative flex items-center justify-center min-h-screen p-6 bg-cover bg-center"
+      style={{ backgroundImage: `url(${bg})` }}
+    >
       <GridShape />
 
-      <div className="w-full max-w-3xl bg-white dark:bg-gray-900 rounded-xl shadow p-8 text-center">
-        <h1 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
-          Vehicle QR View
+      <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg p-8 text-center bg-opacity-90 backdrop-blur-sm">
+        <h1 className="text-2xl font-bold mb-4 text-gray-800 tracking-wide">
+          Official Vehicle QR Details
         </h1>
 
-        <QRCodeCanvas value={qrValue} size={200} className="mx-auto mb-6" />
+        <div className="flex justify-center items-center gap-6 mb-6 mt-4">
+          <img src={dotr} alt="DOTR" className="h-16 sm:h-20 object-contain" />
+          <img
+            src={bp}
+            alt="Bagong Pilipinas"
+            className="h-16 sm:h-20 object-contain"
+          />
+          <img
+            src={tvtap}
+            alt="TVTAP"
+            className="h-16 sm:h-20 object-contain"
+          />
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left mt-6 text-gray-700 dark:text-gray-300">
-          <p>
-            <strong>Case No:</strong> {vehicle.case_number}
-          </p>
-          <p>
-            <strong>Plate No:</strong> {vehicle.plate_number}
-          </p>
-          <p>
-            <strong>Type:</strong> {vehicle.vehicle_type}
-          </p>
-          <p>
-            <strong>Organization:</strong>{" "}
-            {assignment?.organizations?.name || "N/A"}
-          </p>
-          <p>
-            <strong>Driver:</strong>{" "}
-            {assignment?.profiles?.display_name || vehicle.driver_name}
-          </p>
+        {/* Hidden QR for download */}
+        <div className="hidden">
+          <QRCodeCanvas value={qrValue} size={200} ref={qrRef} />
+        </div>
 
-          {vehicle.notes && (
-            <p>
-              <strong>Notes:</strong> {vehicle.notes}
-            </p>
+        <button
+          onClick={handleDownloadQR}
+          className="inline-block mt-4 px-4 py-2 text-white text-sm font-medium bg-blue-600 rounded hover:bg-blue-700 transition"
+        >
+          Download QR
+        </button>
+
+        {/* LTO-style Information Blocks */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left mt-6">
+          {renderField("Case Number", vehicle.case_number)}
+          {renderField("Plate Number", vehicle.plate_number)}
+          {renderField("Vehicle Type", vehicle.vehicle_type)}
+          {renderField("Organization", assignment?.organizations?.name)}
+          {renderField(
+            "Driver",
+            assignment?.profiles?.display_name || vehicle.driver_name
           )}
+          {renderField("Destination", assignment?.destination)}
+          {renderField("Purpose", assignment?.purpose)}
+          {renderField("Assignment Notes", assignment?.notes)}
+          {renderField("Vehicle Notes", vehicle.notes)}
           {vehicle.insurance_document && (
-            <p>
-              <strong>Insurance:</strong>{" "}
+            <div className="border border-dashed border-gray-300 rounded p-4 sm:col-span-2">
+              <label className="block text-sm text-gray-600 mb-1 font-medium">
+                Insurance
+              </label>
               <a
                 href={vehicle.insurance_document}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-500 underline"
+                className="text-blue-600 underline font-semibold text-base"
               >
                 View Document
               </a>
-            </p>
+            </div>
           )}
-        </div>
-
-        {/* Assignment block (optional) */}
-        {assignment ? (
-          <div className="mt-6 p-4 border border-blue-200 dark:border-blue-700 rounded bg-blue-50 dark:bg-blue-900/20 text-sm text-left text-blue-900 dark:text-blue-100">
-            <h2 className="font-semibold mb-2">Assignment Details</h2>
-            <p>
-              <strong>Driver:</strong> {assignment.profiles?.display_name}
-            </p>
-            <p>
-              <strong>Destination:</strong> {assignment.destination}
-            </p>
-            <p>
-              <strong>Notes:</strong> {assignment.notes}
-            </p>
-          </div>
-        ) : (
-          <p className="mt-6 text-sm text-red-500">
-            No vehicle assignment yet.
-          </p>
-        )}
-
-        <div className="mt-8 flex justify-center gap-3">
-          <Link
-            to="/vehicles"
-            className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3.5 text-sm font-medium text-gray-700 shadow hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
-          >
-            Back to Vehicle List
-          </Link>
-
-          <button
-            disabled={!assignment}
-            className={`inline-flex items-center justify-center rounded-lg px-5 py-3.5 text-sm font-medium ${
-              assignment
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
-          >
-            View Assignment
-          </button>
         </div>
       </div>
     </div>

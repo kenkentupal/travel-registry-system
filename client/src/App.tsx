@@ -10,8 +10,8 @@ import { SearchProvider } from "./context/SearchContext";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
-import RoleRoute from "./routes/RoleRoute"; // 💡 New role route
-import { useUser } from "./hooks/useUser"; // 💡 New user hook
+import RoleRoute from "./routes/RoleRoute"; 
+
 
 // Pages
 import SignIn from "./pages/AuthPages/SignIn";
@@ -29,11 +29,8 @@ import AppLayout from "./layout/AppLayout";
 
 export default function App() {
   const session = useSession();
-  const { user, loading } = useUser();
 
   useMarkInviteAsAccepted(session);
-
-  if (loading) return null; // Show loader while user info is being fetched
 
   return (
     <Router>

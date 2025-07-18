@@ -271,6 +271,8 @@ export default function VehicleTable() {
               <Link
                 to={`/vehicle/${v.id}`}
                 className="bg-blue-600 text-white text-xs px-3 py-1 rounded"
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 View
               </Link>
