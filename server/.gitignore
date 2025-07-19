@@ -10,7 +10,7 @@
 
 # production
 /build
-/supabase/supabaseClient.js
+
 
 # misc
 .DS_Store

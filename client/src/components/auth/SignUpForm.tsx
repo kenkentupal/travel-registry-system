@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
@@ -23,11 +23,9 @@ export default function SignUpForm() {
   const [inviteValid, setInviteValid] = useState(false);
   const [inviteInvalidMessage, setInviteInvalidMessage] = useState("");
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLogoutPopup, setShowLogoutPopup] = useState(false);
   const [showConfirmationMessage, setShowConfirmationMessage] = useState(false);
   const [theme, setTheme] = useState("light");
-  const navigate = useNavigate();
 
   useEffect(() => {
     const session = localStorage.getItem("sb-gyhwdkhjyhbntjflqfwz-auth-token");
@@ -41,7 +39,6 @@ export default function SignUpForm() {
             refresh_token: parsedSession.refresh_token,
           })
           .then(() => {
-            setIsLoggedIn(true);
             setShowLogoutPopup(true);
           })
           .catch((error) => console.error("Failed to set session", error));
@@ -108,11 +105,9 @@ export default function SignUpForm() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
 
- 
-
     const { email, password, fname, lname } = formData;
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -144,15 +139,9 @@ export default function SignUpForm() {
       sessionStorage.clear();
       document.cookie =
         "supabase.auth.token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      setIsLoggedIn(false);
+
       setShowLogoutPopup(false);
     });
-  };
-
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
   };
 
   if (inviteInvalidMessage) {

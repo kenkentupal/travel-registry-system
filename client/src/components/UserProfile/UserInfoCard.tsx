@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient"; // adjust path if needed
 
 export default function UserInfoCard() {
-  const { isOpen, openModal, closeModal } = useModal();
+  const { isOpen, closeModal } = useModal();
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {

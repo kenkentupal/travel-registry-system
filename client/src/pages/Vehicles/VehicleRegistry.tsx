@@ -62,7 +62,7 @@ export default function VehicleTable() {
   const [statusFilter, setStatusFilter] = useState("");
   const [organizationIdFilter, setOrganizationIdFilter] = useState("");
 
-  const { user, loading: userLoading } = useUser();
+  const { user } = useUser();
   const { search } = useSearch();
   const VITE_API_URL = import.meta.env.VITE_API_URL;
   const isPrivileged = ["CEO", "Developer"].includes(user?.position || "");

@@ -1,12 +1,10 @@
 import { useCallback } from "react";
 import { Link, useLocation } from "react-router";
 import {
-  BoxCubeIcon,
   CalenderIcon,
   GridIcon,
   GroupIcon,
   MailIcon,
-  PieChartIcon,
   UserCircleIcon,
   VehicleIcon,
   TaskIcon,
@@ -20,8 +18,6 @@ type NavItem = {
   path?: string;
   subItems?: { name: string; path: string; icon?: React.ReactNode }[];
 };
-
-const placeholderIcon = <div className="w-4 h-4 bg-gray-400 rounded-sm" />;
 
 const navItems: NavItem[] = [
   {
@@ -51,29 +47,6 @@ const navItems: NavItem[] = [
     icon: <CalenderIcon />,
     name: "Calendar",
     path: "/calendar",
-  },
-];
-
-const othersItems: NavItem[] = [
-  {
-    icon: <PieChartIcon />,
-    name: "Charts",
-    subItems: [
-      { name: "Line Chart", path: "/line-chart", icon: placeholderIcon },
-      { name: "Bar Chart", path: "/bar-chart", icon: placeholderIcon },
-    ],
-  },
-  {
-    icon: <BoxCubeIcon />,
-    name: "UI Elements",
-    subItems: [
-      { name: "Alerts", path: "/alerts", icon: placeholderIcon },
-      { name: "Avatar", path: "/avatars", icon: placeholderIcon },
-      { name: "Badge", path: "/badge", icon: placeholderIcon },
-      { name: "Buttons", path: "/buttons", icon: placeholderIcon },
-      { name: "Images", path: "/images", icon: placeholderIcon },
-      { name: "Videos", path: "/videos", icon: placeholderIcon },
-    ],
   },
 ];
 

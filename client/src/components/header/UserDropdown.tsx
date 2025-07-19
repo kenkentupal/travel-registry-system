@@ -7,7 +7,7 @@ import { supabase } from "../../supabaseClient";
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [session, setSession] = useState<any>(null);
+
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -24,7 +24,7 @@ export default function UserDropdown() {
         "supabase.auth.token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
 
       // Reset your app's state (if necessary)
-      setSession(null); // Or use any state management solution you're using
+
       navigate("/signin"); // Redirect the user to the sign-in page
     }
   };

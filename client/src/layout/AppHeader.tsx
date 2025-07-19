@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
 import { useSearch } from "../context/SearchContext";
-
 import { Link } from "react-router";
 import { useSidebar } from "../context/SidebarContext";
 import { ThemeToggleButton } from "../components/common/ThemeToggleButton";
@@ -13,31 +11,6 @@ const AppHeader: React.FC = () => {
 
   const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
 
-  const location = useLocation();
-  const currentPath = location.pathname;
-
-  const routeTitles: Record<string, string> = {
-    "/": "Dashboard",
-    "/vehicles": "Vehicle Registry",
-    "/profile": "User Profile",
-    "/organizations": "Organizations",
-    "/calendar": "Calendar",
-    "/blank": "Blank Page",
-    "/form-elements": "Form Elements",
-    "/basic-tables": "Basic Tables",
-    "/alerts": "Alerts",
-    "/avatars": "Avatars",
-    "/badge": "Badges",
-    "/buttons": "Buttons",
-    "/images": "Images",
-    "/videos": "Videos",
-    "/line-chart": "Line Chart",
-    "/bar-chart": "Bar Chart",
-    "/user-invites": "User Invites",
-    "/list": "User List",
-  };
-
-  const pageTitle = routeTitles[currentPath] ?? "Page";
   const { search, setSearch } = useSearch();
 
   const handleToggle = () => {

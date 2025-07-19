@@ -28,7 +28,7 @@ export default function UserTable() {
   const [email, setEmail] = useState("");
   const [position, setPosition] = useState("");
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const { user, loading: userLoading } = useUser();
+  const { user } = useUser();
   const [organizationId, setOrganizationId] = useState<string>("");
   const { search } = useSearch();
   const { setSearch } = useSearch();

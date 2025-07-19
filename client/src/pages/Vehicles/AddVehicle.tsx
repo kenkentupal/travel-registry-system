@@ -3,15 +3,9 @@ import { supabase } from "../../supabaseClient";
 import PageBreadcrumb from "../../components/common/PageBreadCrumb";
 import VehicleDetails from "../../components/form/form-elements/VehicleDetails";
 import InsuranceUpload from "../../components/form/form-elements/InsuranceUpload";
-import PageMeta from "../../components/common/PageMeta";
 
 interface AddVehicleProps {
   onClose: () => void;
-}
-
-interface Organization {
-  id: string;
-  name: string;
 }
 
 export default function AddVehicle({ onClose }: AddVehicleProps) {

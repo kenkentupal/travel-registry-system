@@ -44,7 +44,6 @@ export default function UserMetaCard() {
   const VITE_API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
-    
     const fetchUserAndMeta = async () => {
       const { data: userData, error: userError } =
         await supabase.auth.getUser();
@@ -62,9 +61,7 @@ export default function UserMetaCard() {
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
         },
-      }
-    
-    );
+      });
       const profiles = await profilesRes.json();
       const profile = profiles.find(
         (p: Profiles) => p.email === userData.user.email
@@ -199,7 +196,7 @@ export default function UserMetaCard() {
           </h4>
           <form
             className="flex flex-col"
-            onSubmit={(e) => {
+            onSubmit={() => {
               handleSave(); // call your upload function
             }}
           >

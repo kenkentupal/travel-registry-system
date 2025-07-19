@@ -3,7 +3,7 @@ import { supabase } from "../supabaseClient";
 
 export async function createInvite(email: string, role: string) {
   const code = crypto.randomUUID(); // or shortid
-  const { data, error } = await supabase.from("invites").insert([
+  const { error } = await supabase.from("invites").insert([
     {
       email,
       invite_code: code,

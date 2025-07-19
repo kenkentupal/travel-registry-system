@@ -17,9 +17,7 @@ yarn-error.log*
 .client/node_modules/
 
 
-.server/.env*
-.server/.supabase/*
-
+.srver/.env*
 
 # Supabase / local DB / sensitive
 .supabase/
