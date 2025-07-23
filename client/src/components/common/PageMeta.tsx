@@ -1,3 +1,4 @@
+// components/common/PageMeta.tsx
 import { HelmetProvider, Helmet } from "react-helmet-async";
 
 const PageMeta = ({
@@ -5,16 +6,22 @@ const PageMeta = ({
   description,
 }: {
   title: string;
-  description: string;
+  description?: string;
 }) => (
   <Helmet>
-    <title>{title}</title>
-    <meta name="description" content={description} />
+    <title>{title ? `${title} | TVTAP` : "TVTAP"}</title>
+    {description && <meta name="description" content={description} />}
   </Helmet>
 );
 
 export const AppWrapper = ({ children }: { children: React.ReactNode }) => (
-  <HelmetProvider>{children}</HelmetProvider>
+  <HelmetProvider>
+    {/* This sets the default title */}
+    <Helmet>
+      <title>TVTAP</title>
+    </Helmet>
+    {children}
+  </HelmetProvider>
 );
 
 export default PageMeta;

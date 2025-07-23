@@ -28,28 +28,33 @@ export default function SignUpForm() {
   const [theme, setTheme] = useState("light");
 
   useEffect(() => {
-    const session = localStorage.getItem("sb-gyhwdkhjyhbntjflqfwz-auth-token");
+    // ✅ Restore session from email confirmation (from access_token in URL)
+    const accessToken = searchParams.get("access_token");
+    const refreshToken = searchParams.get("refresh_token");
 
-    if (session) {
-      const parsedSession = JSON.parse(session);
-      if (parsedSession?.access_token) {
-        supabase.auth
-          .setSession({
-            access_token: parsedSession.access_token,
-            refresh_token: parsedSession.refresh_token,
-          })
-          .then(() => {
-            setShowLogoutPopup(true);
-          })
-          .catch((error) => console.error("Failed to set session", error));
-      }
+    if (accessToken && refreshToken) {
+      supabase.auth
+        .setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(() => {
+          setShowConfirmationMessage(true);
+        })
+        .catch((err) => console.error("Session restore error:", err));
     }
 
+    // ✅ Check if there's an existing session (user is already logged in)
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setShowLogoutPopup(true);
+      }
+    });
+
+    // ✅ Restore dark/light theme
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme) {
       setTheme(savedTheme);
     }
 
+    // ✅ Check if invite code is valid
     const checkInvite = async () => {
       if (!inviteCode) return;
 
@@ -63,11 +68,11 @@ export default function SignUpForm() {
       const expired = data?.expires_at && new Date(data.expires_at) < now;
 
       if (error || !data || expired || data.accepted) {
-        if (expired) {
-          setInviteInvalidMessage("This invite has expired.");
-        } else {
-          setInviteInvalidMessage("Invalid or already used invite code.");
-        }
+        setInviteInvalidMessage(
+          expired
+            ? "This invite has expired."
+            : "Invalid or already used invite code."
+        );
         return;
       }
 
@@ -77,34 +82,10 @@ export default function SignUpForm() {
     };
 
     checkInvite();
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const accessToken = urlParams.get("access_token");
-    const refreshToken = urlParams.get("refresh_token");
-
-    if (accessToken && refreshToken) {
-      supabase.auth
-        .setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken,
-        })
-        .then(() => {
-          localStorage.setItem(
-            "sb-gyhwdkhjyhbntjflqfwz-auth-token",
-            JSON.stringify({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            })
-          );
-          setShowConfirmationMessage(true);
-        })
-        .catch((error) => console.error("Session set error:", error));
-    }
-  }, [inviteCode]);
+  }, [inviteCode, searchParams]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const { email, password, fname, lname } = formData;
 
     const { error } = await supabase.auth.signUp({
@@ -125,6 +106,7 @@ export default function SignUpForm() {
       return;
     }
 
+    // ✅ Mark the invite as accepted in your DB
     await supabase
       .from("invites")
       .update({ accepted: true })
@@ -137,9 +119,6 @@ export default function SignUpForm() {
     supabase.auth.signOut().then(() => {
       localStorage.clear();
       sessionStorage.clear();
-      document.cookie =
-        "supabase.auth.token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-
       setShowLogoutPopup(false);
     });
   };
@@ -222,7 +201,7 @@ export default function SignUpForm() {
             className="text-gray-500 hover:text-gray-700 text-sm mb-4 inline-block"
           >
             <ChevronLeftIcon className="inline size-4 mr-1" />
-            Back to dashboard
+            Back to Sign In
           </Link>
 
           <h1 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">

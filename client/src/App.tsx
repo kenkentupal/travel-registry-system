@@ -10,8 +10,8 @@ import { SearchProvider } from "./context/SearchContext";
 import { ScrollToTop } from "./components/common/ScrollToTop";
 
 import ProtectedRoute from "./routes/ProtectedRoute";
-import RoleRoute from "./routes/RoleRoute"; 
-
+import RoleRoute from "./routes/RoleRoute";
+import { Toaster } from "react-hot-toast";
 
 // Pages
 import SignIn from "./pages/AuthPages/SignIn";
@@ -51,6 +51,7 @@ export default function App() {
             <ProtectedRoute>
               <SearchProvider>
                 <AppLayout />
+                <Toaster position="top-right" reverseOrder={false} />
               </SearchProvider>
             </ProtectedRoute>
           }
@@ -92,7 +93,7 @@ export default function App() {
               </RoleRoute>
             }
           />
-          <Route
+          {/* <Route
             path="/calendar"
             element={
               <RoleRoute
@@ -105,95 +106,6 @@ export default function App() {
                 ]}
               >
                 <Calendar />
-              </RoleRoute>
-            }
-          />
-          {/*
-          <Route
-            path="/blank"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <Blank />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/form-elements"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <FormElements />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/basic-tables"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <BasicTables />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/alerts"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <Alerts />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/avatars"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <Avatars />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/badge"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <Badges />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/buttons"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <Buttons />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/images"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <Images />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/videos"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <Videos />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/line-chart"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <LineChart />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/bar-chart"
-            element={
-              <RoleRoute allowedRoles={["CEO", "President"]}>
-                <BarChart />
               </RoleRoute>
             }
           /> */}

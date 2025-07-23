@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import {  EyeCloseIcon, EyeIcon } from "../../icons";
+import { EyeCloseIcon, EyeIcon } from "../../icons";
 import Label from "../form/Label";
 import Input from "../form/input/InputField";
 import Checkbox from "../form/input/Checkbox";
@@ -142,10 +142,10 @@ export default function SignInForm() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Checkbox checked={isChecked} onChange={setIsChecked} />
+                    {/* <Checkbox checked={isChecked} onChange={setIsChecked} />
                     <span className="block font-normal text-gray-700 text-theme-sm dark:text-gray-400">
                       Keep me logged in
-                    </span>
+                    </span> */}
                   </div>
                   <Link
                     to="/reset-password"

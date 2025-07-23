@@ -43,11 +43,11 @@ const navItems: NavItem[] = [
     path: "/organizations",
     icon: <GroupIcon />,
   },
-  {
-    icon: <CalenderIcon />,
-    name: "Calendar",
-    path: "/calendar",
-  },
+  // {
+  //   icon: <CalenderIcon />,
+  //   name: "Calendar",
+  //   path: "/calendar",
+  // },
 ];
 
 const AppSidebar: React.FC = () => {

@@ -55,12 +55,14 @@ import { ReactComponent as MoreDotIcon } from "./moredot.svg?react";
 import { ReactComponent as AlertHexaIcon } from "./alert-hexa.svg?react";
 import { ReactComponent as ErrorHexaIcon } from "./info-hexa.svg?react";
 import { ReactComponent as VehicleIcon } from "./vehicle.svg?react";
+import { ReactComponent as VehicleCIcon } from "./vehiclec.svg?react";
 
 export {
   ErrorHexaIcon,
   AlertHexaIcon,
   MoreDotIcon,
   VehicleIcon,
+  VehicleCIcon,
   DownloadIcon,
   FileIcon,
   GridIcon,

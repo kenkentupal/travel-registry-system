@@ -1,4 +1,4 @@
-import { createSupabaseClient } from "../supabase/supabaseClient.js";
+import { createSupabaseClient, supabase } from "../supabase/supabaseClient.js";
 import { supabaseAdmin } from "../supabase/supabaseAdmin.js";
 import { v4 as uuidv4 } from "uuid";
 

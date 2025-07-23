@@ -8,6 +8,7 @@ import bg from "../../assets/tvtap_bg.png";
 import dotr from "../../assets/dotr.png";
 import bp from "../../assets/bagongpilipinas.png";
 import tvtap from "../../assets/tvtap_logo.png";
+import alpha from "../../assets/alpharso.png";
 
 const VITE_API_URL = import.meta.env.VITE_API_URL;
 
@@ -52,6 +53,11 @@ export default function QRView() {
           const aData = await aRes.json();
           setAssignment(aData);
         }
+
+        // 👉 Log scan only from public view
+        await fetch(`${VITE_API_URL}/api/vehicles/${id}/scan`, {
+          method: "POST",
+        });
       } catch (err) {
         console.error("Error loading QR view:", err);
       } finally {
@@ -115,6 +121,11 @@ export default function QRView() {
           <img
             src={tvtap}
             alt="TVTAP"
+            className="h-16 sm:h-20 object-contain"
+          />
+          <img
+            src={alpha}
+            alt="Alpha RSO"
             className="h-16 sm:h-20 object-contain"
           />
         </div>

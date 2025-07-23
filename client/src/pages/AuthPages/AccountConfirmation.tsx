@@ -7,48 +7,54 @@ export default function AccountConfirmation() {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
-  const accessToken = searchParams.get("access_token");
-  const refreshToken = searchParams.get("refresh_token");
-
-  // Check if tokens are available
   useEffect(() => {
-    const handleSession = async () => {
-      if (accessToken && refreshToken) {
-        try {
-          // Set session with the tokens
-          await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          });
+    const accessToken = searchParams.get("access_token");
+    const refreshToken = searchParams.get("refresh_token");
 
-          // Store session in localStorage for persistence
-          localStorage.setItem(
-            "supabase_session",
-            JSON.stringify({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            })
-          );
+    const confirmAccount = async () => {
+      if (!accessToken || !refreshToken) {
+        setError("Invalid or expired confirmation link.");
+        return;
+      }
 
-          // Redirect to sign-in page or dashboard after successful confirmation
-          navigate("/dashboard"); // or wherever you want to navigate after confirmation
-        } catch (error) {
-          setError("Failed to log in after confirmation.");
-        }
-      } else {
-        setError("Invalid confirmation link.");
+      try {
+        // Let Supabase handle everything internally
+        await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        // Optional: Wait briefly before navigating (helps session settle)
+        setTimeout(() => navigate("/dashboard"), 500);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to complete account confirmation.");
       }
     };
 
-    handleSession();
-  }, [accessToken, refreshToken, navigate]);
+    confirmAccount();
+  }, [navigate, searchParams]);
 
   return (
-    <div>
-      <h2>Your account has been successfully confirmed!</h2>
-      {error && <p>{error}</p>}
-      {/* Optional: Add a button to navigate back to login */}
-      <button onClick={() => navigate("/signin")}>Go to Sign In</button>
+    <div className="flex items-center justify-center h-screen px-4">
+      <div className="text-center max-w-md mx-auto">
+        <h2 className="text-2xl font-semibold mb-4">Account Confirmation</h2>
+        {error ? (
+          <>
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={() => navigate("/signin")}
+              className="bg-blue-600 text-white px-4 py-2 rounded"
+            >
+              Go to Sign In
+            </button>
+          </>
+        ) : (
+          <p className="text-gray-700">
+            Confirming your account, please wait...
+          </p>
+        )}
+      </div>
     </div>
   );
 }

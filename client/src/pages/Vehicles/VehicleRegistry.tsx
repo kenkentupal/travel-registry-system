@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
-
 import AddVehicle from "./AddVehicle";
 import GenerateQR from "./GenerateQR";
 import Select from "../../components/form/Select";
 import PaginatedTable from "../UiElements/PaginatedTable";
+import toast from "react-hot-toast";
 
 import { useUser } from "../../hooks/useUser";
 import { useSearch } from "../../context/SearchContext";
@@ -67,6 +67,15 @@ export default function VehicleTable() {
   const VITE_API_URL = import.meta.env.VITE_API_URL;
   const isPrivileged = ["CEO", "Developer"].includes(user?.position || "");
 
+  const canApprove = ["CEO", "Developer", "President"].includes(
+    user?.position || ""
+  );
+  const canGenerateQR = ["CEO", "Developer", "President", "Member"].includes(
+    user?.position || ""
+  );
+  const canDeleteQR = ["CEO", "Developer"].includes(user?.position || "");
+  const canViewAllOrgs = ["CEO", "Developer"].includes(user?.position || "");
+
   useEffect(() => {
     if (user && !isPrivileged) {
       setOrganizationIdFilter(user.organization_id);
@@ -116,6 +125,7 @@ export default function VehicleTable() {
       setAssignments(Object.fromEntries(assignmentStatusEntries));
     } catch (error) {
       console.error("[VehicleTable] Failed to fetch vehicles:", error);
+      toast.error("Error loading vehicles");
     } finally {
       setLoading(false);
     }
@@ -129,6 +139,7 @@ export default function VehicleTable() {
       setOrganizations(data);
     } catch (error) {
       console.error("Error fetching organizations", error);
+      toast.error("Error loading organizations");
     }
   };
 
@@ -137,7 +148,7 @@ export default function VehicleTable() {
 
     const session = await supabase.auth.getSession();
     const token = session.data.session?.access_token;
-    if (!token) return alert("You must be logged in.");
+    if (!token) return toast.error("You must be logged in.");
 
     try {
       const res = await fetch(`${VITE_API_URL}/api/qrcode/${vehicleId}`, {
@@ -149,10 +160,11 @@ export default function VehicleTable() {
 
       if (!res.ok) throw new Error("Failed to delete assignment");
 
-      alert("Deleted successfully.");
+      toast.success("QR assignment deleted.");
       fetchVehicles();
     } catch (error) {
       console.error("Delete error:", error);
+      toast.error("Delete failed.");
     }
   };
 
@@ -164,7 +176,7 @@ export default function VehicleTable() {
 
     const session = await supabase.auth.getSession();
     const token = session.data.session?.access_token;
-    if (!token) return alert("Authentication required.");
+    if (!token) return toast.error("Authentication required.");
 
     try {
       const res = await fetch(
@@ -181,10 +193,11 @@ export default function VehicleTable() {
 
       if (!res.ok) throw new Error("Failed to update status");
 
-      alert(`Vehicle ${status.toLowerCase()} successfully.`);
+      toast.success(`Vehicle ${status.toLowerCase()} successfully.`);
       fetchVehicles();
     } catch (err) {
       console.error("Status update failed:", err);
+      toast.error("Update failed");
     }
   };
 
@@ -224,6 +237,7 @@ export default function VehicleTable() {
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-500 underline text-xs"
+            title="View insurance"
           >
             View
           </a>
@@ -249,51 +263,73 @@ export default function VehicleTable() {
     },
     {
       label: "Actions",
-      render: (v: Vehicle) =>
-        v.status === "Pending" ? (
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleUpdateStatus(v.id, "Approved")}
-              className="bg-green-600 text-white text-xs px-3 py-1 rounded"
-            >
-              Approve
-            </button>
-            <button
-              onClick={() => handleUpdateStatus(v.id, "Declined")}
-              className="bg-red-600 text-white text-xs px-3 py-1 rounded"
-            >
-              Decline
-            </button>
-          </div>
-        ) : v.status === "Approved" ? (
-          assignments[v.id] ? (
-            <div className="flex gap-2">
+      render: (v: Vehicle) => {
+        const hasQR = assignments[v.id];
+        const isApproved = v.status === "Approved";
+        const isPending = v.status === "Pending";
+
+        const canViewQR =
+          hasQR &&
+          ["Driver", "Member", "President", "CEO", "Developer"].includes(
+            user?.position || ""
+          );
+        const canGenerate = !hasQR && isApproved && canGenerateQR;
+
+        return (
+          <div className="flex gap-2 flex-wrap items-center">
+            {isPending && canApprove && (
+              <>
+                <button
+                  onClick={() => handleUpdateStatus(v.id, "Approved")}
+                  className="bg-green-600 text-white text-xs px-3 py-1 rounded"
+                  title="Approve vehicle"
+                >
+                  Approve
+                </button>
+                <button
+                  onClick={() => handleUpdateStatus(v.id, "Declined")}
+                  className="bg-red-600 text-white text-xs px-3 py-1 rounded"
+                  title="Decline vehicle"
+                >
+                  Decline
+                </button>
+              </>
+            )}
+
+            {canViewQR && (
               <Link
                 to={`/vehicle/${v.id}`}
                 className="bg-blue-600 text-white text-xs px-3 py-1 rounded"
                 target="_blank"
                 rel="noopener noreferrer"
+                title="View QR"
               >
                 View
               </Link>
+            )}
+
+            {canGenerate && (
+              <button
+                onClick={() => setQrVehicle(v)}
+                className="bg-blue-500 text-white text-xs px-3 py-1 rounded"
+                title="Generate QR"
+              >
+                Generate QR
+              </button>
+            )}
+
+            {hasQR && canDeleteQR && (
               <button
                 onClick={() => handleDeleteAssignment(v.id)}
                 className="bg-red-600 text-white text-xs px-3 py-1 rounded"
+                title="Delete QR"
               >
                 Delete
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setQrVehicle(v)}
-              className="bg-blue-500 text-white text-xs px-3 py-1 rounded"
-            >
-              Generate QR
-            </button>
-          )
-        ) : (
-          <span className="text-gray-400 italic text-xs">No actions</span>
-        ),
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -355,7 +391,7 @@ export default function VehicleTable() {
           defaultValue=""
           placeholder="Select Organization"
           value={organizationIdFilter}
-          disabled={!isPrivileged}
+          disabled={!canViewAllOrgs}
           options={[
             { label: "All Organizations", value: "" },
             ...organizations.map((org) => ({

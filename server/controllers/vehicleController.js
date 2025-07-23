@@ -153,3 +153,87 @@ export const updateVehicleStatus = async (req, res) => {
     return res.status(500).json({ error: "Internal server error" });
   }
 };
+export const trackVehicleScan = async (req, res) => {
+  const { id: vehicleId } = req.params;
+
+  const token = req.headers.authorization?.split(" ")[1];
+  if (token) {
+    return res
+      .status(200)
+      .json({ message: "Scan skipped (authenticated user)" });
+  }
+
+  try {
+    const { data: vehicle, error: vehicleError } = await supabase
+      .from("vehicles")
+      .select("id")
+      .eq("id", vehicleId)
+      .single();
+
+    if (vehicleError || !vehicle) {
+      return res.status(404).json({ error: "Vehicle not found" });
+    }
+
+    // Get real client IP
+    const ip =
+      req.headers["x-forwarded-for"]?.split(",").shift() ||
+      req.socket.remoteAddress ||
+      null;
+
+    await supabase.from("vehicle_scans").insert([
+      {
+        vehicle_id: vehicleId,
+        ip_address: ip,
+        user_agent: req.headers["user-agent"] || null,
+      },
+    ]);
+
+    return res.status(200).json({ message: "Scan recorded" });
+  } catch (err) {
+    console.error("❌ Error recording scan:", err.message);
+    return res.status(500).json({ error: "Failed to track scan" });
+  }
+};
+
+export const getVehicleScansByMonth = async (req, res) => {
+  const { organizationId } = req.query;
+
+  try {
+    let query = supabase.from("vehicle_scans").select(`
+    id,
+    scanned_at,
+    vehicle_id,
+    vehicles:vehicle_id!inner (
+      organization_id
+    )
+  `);
+
+    if (organizationId) {
+      query = query.eq("vehicles.organization_id", organizationId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("❌ Supabase error:", error);
+      throw error;
+    }
+
+    const counts = Array(12).fill(0); // Jan = 0
+
+    data.forEach((scan) => {
+      const scannedAt = new Date(scan.scanned_at);
+      if (!isNaN(scannedAt.getTime())) {
+        const month = scannedAt.getMonth(); // 0–11
+        counts[month]++;
+      } else {
+        console.warn("❌ Invalid date:", scan.scanned_at);
+      }
+    });
+
+    res.json({ counts });
+  } catch (err) {
+    console.error("❌ Error fetching scan stats:", err.message);
+    res.status(500).json({ error: "Failed to fetch scan data" });
+  }
+};
