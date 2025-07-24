@@ -1,7 +1,6 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import morgan from "morgan";
 
 // Routes
 import vehicleRoutes from "./routes/vehicleRoutes.js";
@@ -14,28 +13,29 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
-const allowedOrigins = ["http://localhost:5173"];
 
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true, // optional — only if you use cookies or sessions
-  })
-);
+// ✅ CORS Options: allow local frontend & deployed frontend
+const corsOptions = {
+  origin: [
+    "http://localhost:5173", // local frontend
+    "https://travel-registry-system-production.up.railway.app", // deployed frontend
+  ],
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
-app.use(morgan("dev"));
 
+// API Routes
 app.use("/api/vehicles", vehicleRoutes);
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/invites", inviteRoutes);
 app.use("/api/profiles", profileRoutes);
 app.use("/api/qrcode", qrRoutes);
 
+// Default route
 app.get("/", (req, res) => res.send("API is running"));
 
-// 👇 Prevent double listen when testing
-if (process.env.NODE_ENV !== "test") {
-  app.listen(port, () => console.log(`Server running on port ${port}`));
-}
-
-export default app; // ✅ Needed for Supertest
+// Server start
+app.listen(port, () => console.log(`Server running on port ${port}`));
