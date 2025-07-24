@@ -14,18 +14,28 @@ export const scanLimiter = rateLimit({
 });
 
 // Prevent scanning same vehicle repeatedly within 60 seconds
+
 export const preventDuplicateScan = async (req, res, next) => {
   const ip = req.ip;
   const vehicleId = req.params.id;
   const key = `scan:${ip}:${vehicleId}`;
 
-  const exists = await redisClient.get(key);
-  if (exists) {
-    return res.status(429).json({
-      error: "You already scanned this vehicle recently. Please wait a moment.",
-    });
+  try {
+    const exists = await redisClient.get(key);
+
+    if (exists) {
+      return res.status(429).json({
+        error:
+          "You already scanned this vehicle recently. Please wait a moment.",
+      });
+    }
+
+    // Set with expiry of 60 seconds
+    await redisClient.set(key, "1", { EX: 60 });
+  } catch (err) {
+    console.error("Redis error (fallback to allow scan):", err.message);
+    // Don't block the user if Redis fails
   }
 
-  await redisClient.set(key, "1", { EX: 60 }); // Auto-expire in 60 seconds
   next();
 };

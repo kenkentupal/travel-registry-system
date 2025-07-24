@@ -10,6 +10,7 @@ const VITE_API_URL = import.meta.env.VITE_API_URL;
 interface Props {
   organizationId: string;
 }
+
 interface Vehicle {
   id: string;
   created_at: string;
@@ -17,60 +18,57 @@ interface Vehicle {
 }
 
 export default function TotalActive({ organizationId }: Props) {
-  const [activePercent, setActivePercent] = useState<number>(0);
-  const [prevVehicleCount, setPrevVehicleCount] = useState<number>(0);
-  const [prevActiveVehicleCount, setPrevActiveVehicleCount] =
-    useState<number>(0);
+  const [activePercent, setActivePercent] = useState(0);
+  const [prevVehicleCount, setPrevVehicleCount] = useState(0);
+  const [prevActiveVehicleCount, setPrevActiveVehicleCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      const res = await fetch(`${VITE_API_URL}/api/vehicles`);
-      const vehicles = await res.json();
-
-      // 👉 Do not filter by organization, always get total
-      const now = new Date();
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(now.getDate() - 7);
-
-      const previousWeek = vehicles.filter(
-        (v: any) => new Date(v.created_at) < oneWeekAgo
-      );
-      setPrevVehicleCount(previousWeek.length);
-
-      const assignmentChecks = await Promise.all(
-        vehicles.map((v: any) =>
-          fetch(`${VITE_API_URL}/api/qrcode/${v.id}`).then(
-            (res) => res.status === 200
-          )
-        )
-      );
-
-      const activeVehicles = vehicles.filter(
-        (vehicle: Vehicle, i: number) => assignmentChecks[i]
-      );
-
-      const activeCount = activeVehicles.length;
-      const totalCount = vehicles.length;
-      const activePreviousWeek = activeVehicles.filter(
-        (v: any) => new Date(v.created_at) < oneWeekAgo
-      );
-
-      setPrevActiveVehicleCount(activePreviousWeek.length);
-
-      const percent = totalCount === 0 ? 0 : (activeCount / totalCount) * 100;
-      setActivePercent(parseFloat(percent.toFixed(2)));
-    } catch (error) {
-      console.error("Error fetching vehicle data:", error);
-      setActivePercent(0);
-      setPrevVehicleCount(0);
-      setPrevActiveVehicleCount(0);
-    }
-  };
-
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch(`${VITE_API_URL}/api/vehicles`);
+        if (!res.ok) throw new Error("Failed to fetch vehicles");
+
+        const vehicles: Vehicle[] = await res.json();
+
+        const now = new Date();
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(now.getDate() - 7);
+
+        const previousWeek = vehicles.filter(
+          (v) => new Date(v.created_at) < oneWeekAgo
+        );
+        setPrevVehicleCount(previousWeek.length);
+
+        const assignmentChecks = await Promise.all(
+          vehicles.map((v) =>
+            fetch(`${VITE_API_URL}/api/qrcode/${v.id}`).then(
+              (res) => res.status === 200
+            )
+          )
+        );
+
+        const activeVehicles = vehicles.filter((_, i) => assignmentChecks[i]);
+        const activeCount = activeVehicles.length;
+        const totalCount = vehicles.length;
+
+        const activePreviousWeek = activeVehicles.filter(
+          (v) => new Date(v.created_at) < oneWeekAgo
+        );
+        setPrevActiveVehicleCount(activePreviousWeek.length);
+
+        const percent = totalCount === 0 ? 0 : (activeCount / totalCount) * 100;
+        setActivePercent(parseFloat(percent.toFixed(2)));
+      } catch (error) {
+        console.error("Error fetching vehicle data:", error);
+        setActivePercent(0);
+        setPrevVehicleCount(0);
+        setPrevActiveVehicleCount(0);
+      }
+    };
+
     fetchData();
-  }, [organizationId]); // still re-fetch when org changes (optional)
+  }, [organizationId]);
 
   const prevActivePercent =
     prevVehicleCount === 0
@@ -87,26 +85,20 @@ export default function TotalActive({ organizationId }: Props) {
       fontFamily: "Outfit, sans-serif",
       type: "radialBar",
       height: 330,
-      sparkline: {
-        enabled: true,
-      },
+      sparkline: { enabled: true },
     },
     plotOptions: {
       radialBar: {
         startAngle: -85,
         endAngle: 85,
-        hollow: {
-          size: "80%",
-        },
+        hollow: { size: "80%" },
         track: {
           background: "#E4E7EC",
           strokeWidth: "100%",
           margin: 5,
         },
         dataLabels: {
-          name: {
-            show: false,
-          },
+          name: { show: false },
           value: {
             fontSize: "36px",
             fontWeight: "600",
@@ -117,23 +109,10 @@ export default function TotalActive({ organizationId }: Props) {
         },
       },
     },
-    fill: {
-      type: "solid",
-      colors: ["#465FFF"],
-    },
-    stroke: {
-      lineCap: "round",
-    },
+    fill: { type: "solid", colors: ["#465FFF"] },
+    stroke: { lineCap: "round" },
     labels: ["Active Vehicles %"],
   };
-
-  function toggleDropdown() {
-    setIsOpen(!isOpen);
-  }
-
-  function closeDropdown() {
-    setIsOpen(false);
-  }
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-white/[0.03]">
@@ -145,21 +124,8 @@ export default function TotalActive({ organizationId }: Props) {
               Total Active Vehicles %
             </h3>
             <p className="mt-1 text-gray-500 text-theme-sm dark:text-gray-400">
-              Across all organizations this week
+              Across all organizations
             </p>
-          </div>
-          <div className="relative inline-block">
-            <button className="dropdown-toggle" onClick={toggleDropdown}>
-              <MoreDotIcon className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 size-6" />
-            </button>
-            <Dropdown
-              isOpen={isOpen}
-              onClose={closeDropdown}
-              className="w-40 p-2"
-            >
-              <DropdownItem onItemClick={closeDropdown}>View More</DropdownItem>
-              <DropdownItem onItemClick={closeDropdown}>Delete</DropdownItem>
-            </Dropdown>
           </div>
         </div>
 
@@ -204,7 +170,7 @@ export default function TotalActive({ organizationId }: Props) {
             {prevVehicleCount.toLocaleString()}
           </p>
         </div>
-        <div className="w-px bg-gray-200 h-7 dark:bg-gray-800"></div>
+        <div className="w-px bg-gray-200 h-7 dark:bg-gray-800" />
         <div className="text-center">
           <p className="mb-1 text-gray-500 text-theme-xs dark:text-gray-400 sm:text-sm">
             Active (Prev)
@@ -213,7 +179,7 @@ export default function TotalActive({ organizationId }: Props) {
             {prevActiveVehicleCount.toLocaleString()}
           </p>
         </div>
-        <div className="w-px bg-gray-200 h-7 dark:bg-gray-800"></div>
+        <div className="w-px bg-gray-200 h-7 dark:bg-gray-800" />
         <div className="text-center">
           <p className="mb-1 text-gray-500 text-theme-xs dark:text-gray-400 sm:text-sm">
             Active % (Prev)

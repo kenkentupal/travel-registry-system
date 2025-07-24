@@ -1,16 +1,15 @@
 import { useEffect, useState, useMemo } from "react";
 import Chart from "react-apexcharts";
 import { ApexOptions } from "apexcharts";
-import ChartTab from "../common/ChartTab";
 import Select from "../../pages/UiElements/Select";
 
 const VITE_API_URL = import.meta.env.VITE_API_URL;
 
-export default function StatisticsChart({
-  organizationId,
-}: {
+interface Props {
   organizationId: string;
-}) {
+}
+
+export default function StatisticsChart({ organizationId }: Props) {
   const [scanCounts, setScanCounts] = useState<number[]>(Array(12).fill(0));
   const [loading, setLoading] = useState(false);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
@@ -29,19 +28,26 @@ export default function StatisticsChart({
         const res = await fetch(url);
         const data = await res.json();
 
-        if (res.ok && data.counts && Array.isArray(data.counts)) {
-          const years = data.years || [selectedYear];
-          const sorted = [...(new Set(years) as Set<number>)].sort(
-            (a, b) => b - a
-          );
-
-          setAvailableYears(sorted);
-
-          setScanCounts([...data.counts]);
-        } else {
-          console.error("API error or invalid data:", data.error);
-          setScanCounts(Array(12).fill(0));
+        if (!res.ok || !Array.isArray(data.counts)) {
+          throw new Error(data.error || "Invalid response");
         }
+
+        const stableCounts = [...data.counts]; // ensure new reference
+        setScanCounts((prev) =>
+          JSON.stringify(prev) !== JSON.stringify(stableCounts)
+            ? stableCounts
+            : prev
+        );
+
+        const years = Array.isArray(data.years) ? data.years : [selectedYear];
+        const sortedYears = [...new Set(years)] as number[];
+        sortedYears.sort((a, b) => b - a);
+
+        setAvailableYears((prev) =>
+          JSON.stringify(prev) !== JSON.stringify(sortedYears)
+            ? sortedYears
+            : prev
+        );
       } catch (err) {
         console.error("Failed to fetch scan stats:", err);
         setScanCounts(Array(12).fill(0));
@@ -53,6 +59,7 @@ export default function StatisticsChart({
     fetchScanData();
   }, [organizationId, selectedYear]);
 
+  // ✅ Stable options using useMemo
   const options: ApexOptions = useMemo(
     () => ({
       chart: {
@@ -90,20 +97,19 @@ export default function StatisticsChart({
           "Dec",
         ],
       },
+      tooltip: {
+        enabled: true,
+      },
       dataLabels: { enabled: false },
       grid: { borderColor: "#eee" },
     }),
     []
   );
 
+  // ✅ Memoized series
   const series = useMemo(
-    () => [
-      {
-        name: "Scans",
-        data: scanCounts,
-      },
-    ],
-    [scanCounts]
+    () => [{ name: "Scans", data: [...scanCounts] }],
+    [JSON.stringify(scanCounts)]
   );
 
   const yearOptions = useMemo(
@@ -121,7 +127,7 @@ export default function StatisticsChart({
       <div className="flex flex-col gap-5 mb-6 sm:flex-row sm:justify-between">
         <div className="w-full">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-            Scan Statistics
+            QR Scan Statistics
           </h3>
           <p className="mt-1 text-gray-500 text-theme-sm dark:text-gray-400">
             Public QR scans per month

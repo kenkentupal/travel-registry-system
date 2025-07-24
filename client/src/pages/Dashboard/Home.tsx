@@ -19,32 +19,43 @@ export default function Home() {
   const { user } = useUser();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationId, setOrganizationId] = useState<string>("");
+  const [loading, setLoading] = useState(true); // 🚀 loading state
 
-  // Privileged roles who can view all orgs and select from dropdown
   const isPrivileged = ["CEO", "Developer"].includes(user?.position || "");
 
-  // Fetch organizations list (only once)
   useEffect(() => {
     const fetchOrganizations = async () => {
-      const { data } = await supabase.from("organizations").select("id,name");
-      setOrganizations(data || []);
+      try {
+        const { data } = await supabase.from("organizations").select("id,name");
+        setOrganizations(data || []);
+      } catch (error) {
+        console.error("Error fetching organizations:", error);
+        setOrganizations([]);
+      }
     };
+
     fetchOrganizations();
   }, []);
 
-  // For normal users, set their org automatically (disable select)
   useEffect(() => {
-    if (user && !isPrivileged) {
+    if (!user) return;
+
+    if (!isPrivileged) {
       setOrganizationId(user.organization_id || "");
+    } else {
+      setOrganizationId(""); // Default to "All Organizations"
     }
+
+    setLoading(false); // ✅ Done initializing
   }, [user, isPrivileged]);
 
-  // For privileged, default to "All Organizations" (empty string)
-  useEffect(() => {
-    if (isPrivileged && organizationId === "") {
-      setOrganizationId(""); // explicitly "All Organizations"
-    }
-  }, [organizations, isPrivileged, organizationId]);
+  if (loading || (isPrivileged && organizations.length === 0)) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-500">
+        Loading dashboard...
+      </div>
+    );
+  }
 
   return (
     <>
@@ -85,9 +96,9 @@ export default function Home() {
           <ScanChart organizationId={organizationId} />
         </div>
 
-        <div className="col-span-12 xl:col-span-7">
+        {/* <div className="col-span-12 xl:col-span-7">
           <RecentOrders />
-        </div>
+        </div> */}
       </div>
     </>
   );

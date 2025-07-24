@@ -1,6 +1,6 @@
+import { useEffect, useState } from "react";
 import Chart from "react-apexcharts";
 import { ApexOptions } from "apexcharts";
-import { useEffect, useState } from "react";
 import Select from "../../pages/UiElements/Select";
 
 const VITE_API_URL = import.meta.env.VITE_API_URL;
@@ -23,36 +23,38 @@ export default function MonthlyRegistered({ organizationId }: Props) {
     new Date().getFullYear()
   );
 
-  const fetchVehicleData = async () => {
-    try {
-      const res = await fetch(`${VITE_API_URL}/api/vehicles`);
-      const data: Vehicle[] = await res.json();
-
-      const filtered = organizationId
-        ? data.filter((v) => v.organization_id === organizationId)
-        : data;
-
-      const years = Array.from(
-        new Set(filtered.map((v) => new Date(v.created_at).getFullYear()))
-      ).sort((a, b) => b - a);
-      setAvailableYears(years);
-
-      const counts = Array(12).fill(0);
-      filtered.forEach((v) => {
-        const createdAt = new Date(v.created_at);
-        if (createdAt.getFullYear() === selectedYear) {
-          const month = createdAt.getMonth();
-          counts[month]++;
-        }
-      });
-
-      setMonthlyCounts(counts);
-    } catch (err) {
-      console.error("Failed to fetch monthly data:", err);
-    }
-  };
-
   useEffect(() => {
+    const fetchVehicleData = async () => {
+      try {
+        const res = await fetch(`${VITE_API_URL}/api/vehicles`);
+        if (!res.ok) throw new Error("Failed to fetch vehicle data");
+
+        const data: Vehicle[] = await res.json();
+        const filtered = organizationId
+          ? data.filter((v) => v.organization_id === organizationId)
+          : data;
+
+        const years = Array.from(
+          new Set(filtered.map((v) => new Date(v.created_at).getFullYear()))
+        ).sort((a, b) => b - a);
+
+        setAvailableYears(years);
+
+        const counts = Array(12).fill(0);
+        filtered.forEach((v) => {
+          const createdAt = new Date(v.created_at);
+          if (createdAt.getFullYear() === selectedYear) {
+            counts[createdAt.getMonth()]++;
+          }
+        });
+
+        setMonthlyCounts(counts);
+      } catch (err) {
+        console.error("Failed to fetch monthly registration data:", err);
+        setMonthlyCounts(Array(12).fill(0));
+      }
+    };
+
     fetchVehicleData();
   }, [organizationId, selectedYear]);
 
@@ -62,9 +64,7 @@ export default function MonthlyRegistered({ organizationId }: Props) {
       fontFamily: "Outfit, sans-serif",
       type: "bar",
       height: 180,
-      toolbar: {
-        show: false,
-      },
+      toolbar: { show: false },
     },
     plotOptions: {
       bar: {
@@ -74,9 +74,7 @@ export default function MonthlyRegistered({ organizationId }: Props) {
         borderRadiusApplication: "end",
       },
     },
-    dataLabels: {
-      enabled: false,
-    },
+    dataLabels: { enabled: false },
     stroke: {
       show: true,
       width: 4,
@@ -106,20 +104,12 @@ export default function MonthlyRegistered({ organizationId }: Props) {
       horizontalAlign: "left",
       fontFamily: "Outfit",
     },
-    yaxis: {
-      title: { text: undefined },
-    },
-    grid: {
-      yaxis: {
-        lines: { show: true },
-      },
-    },
+    yaxis: { title: { text: undefined } },
+    grid: { yaxis: { lines: { show: true } } },
     fill: { opacity: 1 },
     tooltip: {
       x: { show: false },
-      y: {
-        formatter: (val: number) => `${val}`,
-      },
+      y: { formatter: (val: number) => `${val}` },
     },
   };
 
@@ -129,6 +119,7 @@ export default function MonthlyRegistered({ organizationId }: Props) {
       data: monthlyCounts,
     },
   ];
+
   const yearOptions = availableYears.map((year) => ({
     label: year.toString(),
     value: year.toString(),

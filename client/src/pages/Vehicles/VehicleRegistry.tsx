@@ -73,7 +73,9 @@ export default function VehicleTable() {
   const canGenerateQR = ["CEO", "Developer", "President", "Member"].includes(
     user?.position || ""
   );
-  const canDeleteQR = ["CEO", "Developer"].includes(user?.position || "");
+  const canDeleteQR = ["CEO", "Developer", "President"].includes(
+    user?.position || ""
+  );
   const canViewAllOrgs = ["CEO", "Developer"].includes(user?.position || "");
 
   useEffect(() => {
