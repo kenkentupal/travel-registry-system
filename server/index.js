@@ -14,8 +14,14 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+const allowedOrigins = ["http://localhost:5173"];
 
-app.use(cors());
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true, // optional — only if you use cookies or sessions
+  })
+);
 app.use(express.json());
 app.use(morgan("dev"));
 
