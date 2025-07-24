@@ -1,6 +1,8 @@
 // middleware/scanLimiter.js
 import rateLimit from "express-rate-limit";
-import redisClient from "../lib/redisClient.js";
+
+// In-memory store: Map<key, expiryTimestamp>
+const recentScans = new Map();
 
 // Rate limit: max 10 scans per IP per 15 minutes
 export const scanLimiter = rateLimit({
@@ -14,27 +16,26 @@ export const scanLimiter = rateLimit({
 });
 
 // Prevent scanning same vehicle repeatedly within 60 seconds
-
 export const preventDuplicateScan = async (req, res, next) => {
   const ip = req.ip;
   const vehicleId = req.params.id;
-  const key = `scan:${ip}:${vehicleId}`;
+  const key = `${ip}:${vehicleId}`;
+  const now = Date.now();
 
-  try {
-    const exists = await redisClient.get(key);
+  const expiresAt = recentScans.get(key);
 
-    if (exists) {
-      return res.status(429).json({
-        error:
-          "You already scanned this vehicle recently. Please wait a moment.",
-      });
-    }
+  if (expiresAt && now < expiresAt) {
+    return res.status(429).json({
+      error: "You already scanned this vehicle recently. Please wait a moment.",
+    });
+  }
 
-    // Set with expiry of 60 seconds
-    await redisClient.set(key, "1", { EX: 60 });
-  } catch (err) {
-    console.error("Redis error (fallback to allow scan):", err.message);
-    // Don't block the user if Redis fails
+  // Set expiration 60 seconds from now
+  recentScans.set(key, now + 60 * 1000);
+
+  // Optional: Clean up old entries (to avoid memory bloat)
+  for (const [k, v] of recentScans) {
+    if (v < now) recentScans.delete(k);
   }
 
   next();
