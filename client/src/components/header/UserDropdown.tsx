@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { Link, useNavigate } from "react-router-dom";
+import { useUser } from "../../hooks/useUser";
 import { supabase } from "../../supabaseClient";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-
+  const { user, loading } = useUser(); // ✅ replaced manual fetch
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -15,54 +15,26 @@ export default function UserDropdown() {
     if (error) {
       console.error("Error signing out:", error.message);
     } else {
-      // Clear localStorage and sessionStorage explicitly
-      localStorage.clear(); // Clears all localStorage items
-      sessionStorage.clear(); // Clears all sessionStorage items
-
-      // Optionally, you can also delete cookies if you're using them
+      localStorage.clear();
+      sessionStorage.clear();
       document.cookie =
         "supabase.auth.token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-
-      // Reset your app's state (if necessary)
-
-      navigate("/signin"); // Redirect the user to the sign-in page
+      navigate("/signin");
     }
   };
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-    };
+  const toggleDropdown = () => setIsOpen(!isOpen);
+  const closeDropdown = () => setIsOpen(false);
 
-    fetchUser();
+  const avatarUrl =
+    user?.avatar_url ||
+    user?.user_metadata?.avatar_url ||
+    "https://i.pinimg.com/474x/07/c4/72/07c4720d19a9e9edad9d0e939eca304a.jpg";
 
-    // Set up listener for authentication state changes
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!session) {
-          setUser(null); // Clear the user state when signed out
-        } else {
-          setUser(session.user); // Update user state when signed in
-        }
-      }
-    );
-
-    // Clean up listener on component unmount
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  function toggleDropdown() {
-    setIsOpen(!isOpen);
-  }
-
-  function closeDropdown() {
-    setIsOpen(false);
-  }
+  const displayName =
+    user?.user_metadata?.first_name && user?.user_metadata?.last_name
+      ? `${user.user_metadata.first_name} ${user.user_metadata.last_name}`
+      : "Guest User";
 
   return (
     <div className="relative">
@@ -72,16 +44,15 @@ export default function UserDropdown() {
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
           <img
-            src="https://i.pinimg.com/474x/07/c4/72/07c4720d19a9e9edad9d0e939eca304a.jpg"
+            src={avatarUrl}
             alt="User"
+            className="object-cover w-full h-full"
           />
         </span>
 
         <span className="block font-medium text-gray-700 text-theme-sm dark:text-gray-400">
           <span className="block mr-1 font-medium text-theme-sm">
-            {(user?.user_metadata?.first_name || "") +
-              " " +
-              (user?.user_metadata?.last_name || "") || "Guest User"}
+            {displayName}
           </span>
         </span>
         <svg

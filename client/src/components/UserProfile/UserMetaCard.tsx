@@ -5,17 +5,7 @@ import Input from "../form/input/InputField";
 import Label from "../form/Label";
 import { useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient";
-
-interface Profiles {
-  id: string;
-  email: string;
-  position: string;
-  organization_id: string;
-  created_at: string;
-  organizations?: {
-    name: string;
-  };
-}
+import { useUser } from "../../hooks/useUser";
 
 interface Organization {
   id: string;
@@ -24,130 +14,134 @@ interface Organization {
 
 export default function UserMetaCard() {
   const { isOpen, openModal, closeModal } = useModal();
-  const [organizationId, setOrganizationId] = useState("");
-  const [position, setPosition] = useState("");
+  const { user, loading, refresh } = useUser();
+
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [user, setUser] = useState<any>(null);
+
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-
+  const [position, setPosition] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImageUrl, setProfileImageUrl] = useState<string>("");
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setProfileImage(file);
-    }
-  };
 
   const VITE_API_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
-    const fetchUserAndMeta = async () => {
-      const { data: userData, error: userError } =
-        await supabase.auth.getUser();
-      if (userError || !userData.user) return;
+    if (!user) return;
 
-      setUser(userData.user);
-      setFirstName(userData.user.user_metadata?.first_name || "");
-      setLastName(userData.user.user_metadata?.last_name || "");
+    setFirstName(user.user_metadata?.first_name || "");
+    setLastName(user.user_metadata?.last_name || "");
+    setPosition(user.position || "");
+    setOrganizationId(user.organization_id || "");
+    setProfileImageUrl(user.avatar_url || "");
+  }, [user]);
+
+  useEffect(() => {
+    const fetchOrganizations = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const res = await fetch(`${VITE_API_URL}/api/organizations`, {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+      });
+
+      const data = await res.json();
+      setOrganizations(data);
+    };
+
+    fetchOrganizations();
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        alert("Only image files are allowed.");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert("File is too large. Max 5MB.");
+        return;
+      }
+      setProfileImage(file);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      if (!user) return;
+
+      let uploadedImageUrl = profileImageUrl;
+
+      if (profileImage) {
+        const oldFileName = profileImageUrl.split("/").pop();
+        if (oldFileName) {
+          await supabase.storage.from("avatars").remove([oldFileName]);
+        }
+
+        const ext = profileImage.name.split(".").pop();
+        const fileName = `${user.id}.${ext}`;
+        const filePath = fileName;
+
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, profileImage, {
+            upsert: true,
+            contentType: profileImage.type,
+          });
+
+        if (uploadError) {
+          console.error("Upload failed:", uploadError.message);
+          return;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        uploadedImageUrl = publicUrlData.publicUrl;
+        setProfileImageUrl(uploadedImageUrl);
+      }
 
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const profilesRes = await fetch(`${VITE_API_URL}/api/profiles`, {
+      await fetch(`${VITE_API_URL}/api/profiles/update-metadata`, {
+        method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${session?.access_token}`,
         },
+        body: JSON.stringify({
+          userId: user.id,
+          first_name: firstName,
+          last_name: lastName,
+        }),
       });
-      const profiles = await profilesRes.json();
-      const profile = profiles.find(
-        (p: Profiles) => p.email === userData.user.email
-      );
 
-      if (profile) {
-        setPosition(profile.position || "");
-        setOrganizationId(profile.organization_id || "");
-      }
-
-      const orgsRes = await fetch(`${VITE_API_URL}/api/organizations`, {
-        headers: {
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-      });
-      const orgsData = await orgsRes.json();
-      setOrganizations(orgsData);
-      setOrganizations(orgsData);
-
-      if (profile) {
-        setPosition(profile.position || "");
-        setOrganizationId(profile.organization_id || "");
-        setProfileImageUrl(profile.avatar_url || ""); // assuming avatar_url in DB
-      }
-    };
-
-    fetchUserAndMeta();
-  }, []);
-
-  const handleSave = async () => {
-    try {
-      if (!profileImage) {
-        console.warn("No file selected.");
-        return;
-      }
-
-      if (!user) {
-        console.error("User not loaded.");
-        return;
-      }
-
-      const fileExt = profileImage.name.split(".").pop();
-      const fileName = `${user.id}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      console.log("Uploading image to Supabase...");
-
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, profileImage, {
-          upsert: true,
-          contentType: profileImage.type,
-        });
-
-      if (uploadError) {
-        console.error("Upload error:", uploadError.message);
-        return;
-      }
-
-      console.log("Upload success:", uploadData);
-
-      const { data: publicUrlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
-
-      const uploadedImageUrl = publicUrlData.publicUrl;
-      console.log("Public URL:", uploadedImageUrl);
-
-      // Update avatar_url in profiles table
-      const { error: updateError } = await supabase
+      await supabase
         .from("profiles")
-        .update({ avatar_url: uploadedImageUrl })
+        .update({
+          position,
+          organization_id: organizationId,
+          avatar_url: uploadedImageUrl,
+        })
         .eq("id", user.id);
 
-      if (updateError) {
-        console.error("Error updating profile:", updateError.message);
-        return;
-      }
-
-      setProfileImageUrl(uploadedImageUrl);
-      console.log("✅ Profile updated.");
+      await refresh();
       closeModal();
+      window.location.reload(); // ✅ Force page refresh after save
     } catch (err: any) {
-      console.error("❌ Failed to upload image:", err.message);
+      console.error("Error saving:", err.message);
     }
   };
+
+  if (loading || !user) return <div>Loading...</div>;
 
   return (
     <>
@@ -173,8 +167,7 @@ export default function UserMetaCard() {
                 </p>
                 <div className="hidden h-3.5 w-px bg-gray-300 dark:bg-gray-700 xl:block"></div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {organizations.find((org) => org.id === organizationId)
-                    ?.name || "N/A"}
+                  {user.organizations?.name || "N/A"}
                 </p>
               </div>
             </div>
@@ -196,11 +189,12 @@ export default function UserMetaCard() {
           </h4>
           <form
             className="flex flex-col"
-            onSubmit={() => {
-              handleSave(); // call your upload function
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
             }}
           >
-            <div className="col-span-2">
+            <div className="col-span-2 mb-6">
               <Label>Profile Picture</Label>
               <div className="flex items-center gap-4 mt-2">
                 <div className="w-20 h-20 flex-shrink-0 overflow-hidden border rounded-full bg-gray-100 dark:bg-gray-800">
@@ -246,35 +240,12 @@ export default function UserMetaCard() {
                   onChange={(e) => setLastName(e.target.value)}
                 />
               </div>
-              <div className="col-span-2">
-                <Label>Position</Label>
-                <Input
-                  type="text"
-                  value={position}
-                  onChange={(e) => setPosition(e.target.value)}
-                />
-              </div>
-              <div className="col-span-2">
-                <Label>Organization</Label>
-                <select
-                  value={organizationId}
-                  onChange={(e) => setOrganizationId(e.target.value)}
-                  className="border px-4 py-2 rounded-md w-full dark:bg-gray-800 text-gray-800 dark:text-white"
-                >
-                  <option value="">Select organization</option>
-                  {organizations.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      {org.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button size="sm" variant="outline" onClick={closeModal}>
                 Close
               </Button>
-              <Button size="sm" type="button" onClick={handleSave}>
+              <Button size="sm" type="submit">
                 Save Changes
               </Button>
             </div>

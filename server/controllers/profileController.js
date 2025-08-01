@@ -2,29 +2,36 @@ import { createSupabaseClient } from "../supabase/supabaseClient.js";
 import { supabaseAdmin } from "../supabase/supabaseAdmin.js";
 
 export const getCurrentUserProfile = async (req, res) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.status(401).json({ error: "Unauthorized" });
+  const token = req.headers.authorization?.replace("Bearer ", "");
 
-  const supabase = createSupabaseClient(token);
+  if (!token) return res.status(401).json({ error: "Missing token" });
 
   const {
     data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+    error,
+  } = await supabase.auth.getUser(token);
 
-  if (userError || !user) {
-    return res.status(401).json({ error: "Invalid user session" });
+  if (error || !user) {
+    return res.status(401).json({ error: "Invalid token" });
   }
 
-  const { data, error } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("position")
+    .select("*")
     .eq("id", user.id)
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (profileError) {
+    return res.status(500).json({ error: "Profile not found" });
+  }
 
-  res.json(data);
+  // Merge auth data + profile
+  res.json({
+    id: user.id,
+    email: user.email,
+    user_metadata: user.user_metadata,
+    ...profile,
+  });
 };
 
 export const fetchProfiles = async (req, res) => {
@@ -111,4 +118,19 @@ export const fetchDriversByOrganization = async (req, res) => {
   }
 
   return res.json(enrichedDrivers);
+};
+
+export const updateAvatar = async (req, res) => {
+  const { user_id, avatar_url } = req.body;
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ avatar_url })
+    .eq("user_id", user_id);
+
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  res.json({ message: "Avatar updated successfully" });
 };
