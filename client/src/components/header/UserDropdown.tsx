@@ -7,7 +7,8 @@ import { supabase } from "../../supabaseClient";
 
 export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, loading } = useUser(); // ✅ replaced manual fetch
+  const { user, loading, refresh } = useUser();
+
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -23,7 +24,11 @@ export default function UserDropdown() {
     }
   };
 
-  const toggleDropdown = () => setIsOpen(!isOpen);
+  const toggleDropdown = () => {
+    setIsOpen(!isOpen);
+    if (!isOpen) refresh(); // refresh only when opening
+  };
+
   const closeDropdown = () => setIsOpen(false);
 
   const avatarUrl =
@@ -44,7 +49,9 @@ export default function UserDropdown() {
       >
         <span className="mr-3 overflow-hidden rounded-full h-11 w-11">
           <img
-            src={avatarUrl}
+            src={`${avatarUrl}${
+              avatarUrl.includes("?") ? "&" : "?"
+            }t=${Date.now()}`}
             alt="User"
             className="object-cover w-full h-full"
           />

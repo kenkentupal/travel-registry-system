@@ -121,16 +121,67 @@ export const fetchDriversByOrganization = async (req, res) => {
 };
 
 export const updateAvatar = async (req, res) => {
-  const { user_id, avatar_url } = req.body;
+  try {
+    let { userId, fileName, fileType, oldFilePath } = req.body;
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({ avatar_url })
-    .eq("user_id", user_id);
+    const extension = fileName.split(".").pop();
+    fileName = `avatars/${userId}_${Date.now()}.${extension}`;
 
-  if (error) {
-    return res.status(400).json({ error: error.message });
+    if (!userId || !fileName || !fileType) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // 1. Delete old avatar if it exists
+    if (oldFilePath) {
+      const { error: deleteError } = await supabaseAdmin.storage
+        .from("avatars")
+        .remove([oldFilePath]);
+
+      if (deleteError) {
+        console.warn(
+          "Warning: Failed to delete previous avatar",
+          deleteError.message
+        );
+        // Proceed anyway
+      }
+    }
+
+    // 2. Create signed URL for uploading the new avatar
+    const { data, error } = await supabaseAdmin.storage
+      .from("avatars")
+      .createSignedUploadUrl(fileName, {
+        contentType: fileType,
+        upsert: true,
+      });
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    // 3. Get public URL for display
+    const publicUrl = supabaseAdmin.storage
+      .from("avatars")
+      .getPublicUrl(fileName).data.publicUrl;
+
+    // 4. Update user profile in DB
+    const { error: updateError } = await supabaseAdmin
+      .from("profiles")
+      .update({ avatar_url: publicUrl })
+      .eq("id", userId);
+
+    if (updateError) {
+      return res.status(500).json({
+        error: "Failed to update avatar in profile: " + updateError.message,
+      });
+    }
+
+    return res.status(200).json({
+      signedUrl: data.signedUrl,
+      publicUrl,
+      path: fileName,
+      message: "Avatar updated successfully",
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  res.json({ message: "Avatar updated successfully" });
 };

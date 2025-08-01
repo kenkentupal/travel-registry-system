@@ -1,224 +1,78 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "../../supabaseClient";
+
+import { useVehicles } from "../../hooks/vehicle/useVehicles";
+import { useOrganizations } from "../../hooks/organization/useOrganizations";
+import { useUpdateVehicleStatus } from "../../hooks/vehicle/useUpdateVehicleStatus";
+import { useDeleteAssignment } from "../../hooks/vehicle/useDeleteAssignment";
+import { useRolePermissions } from "../../hooks/useRolePermissions.ts";
+import { useUser } from "../../hooks/useUser";
+import Spinner from "../../components/ui/spinner/Spinner.tsx";
+
+import { useSearch } from "../../context/SearchContext";
+import { Vehicle } from "../../types/vehicle";
+
 import AddVehicle from "./AddVehicle";
 import GenerateQR from "./GenerateQR";
 import Select from "../../components/form/Select";
 import PaginatedTable from "../UiElements/PaginatedTable";
-import toast from "react-hot-toast";
 
-import { useUser } from "../../hooks/useUser";
-import { useSearch } from "../../context/SearchContext";
-
-interface Vehicle {
-  id: number;
-  case_number: string;
-  plate_number: string;
-  vehicle_type: string;
-  insurance_document?: string;
-  status: string;
-  created_by?: string;
-  organization_id: string;
-}
-
-interface Organization {
-  id: string;
-  name: string;
-}
-
-async function fetchAssignmentStatus(
-  vehicleId: number,
-  token: string,
-  apiUrl: string
-): Promise<boolean> {
-  try {
-    const res = await fetch(`${apiUrl}/api/qrcode/${vehicleId}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (res.status === 404) return false;
-    if (!res.ok) {
-      const message = await res.text();
-      console.warn(`Unexpected response for vehicle ${vehicleId}:`, message);
-      return false;
-    }
-
-    return true;
-  } catch (err) {
-    console.error(`Error fetching QR for vehicle ${vehicleId}:`, err);
-    return false;
-  }
-}
-
-export default function VehicleTable() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [assignments, setAssignments] = useState<Record<number, boolean>>({});
-  const [loading, setLoading] = useState(true);
-  const [showAddVehicle, setShowAddVehicle] = useState(false);
-  const [qrVehicle, setQrVehicle] = useState<Vehicle | null>(null);
+export default function VehicleRegistry() {
   const [statusFilter, setStatusFilter] = useState("");
   const [organizationIdFilter, setOrganizationIdFilter] = useState("");
+  const [showAddVehicle, setShowAddVehicle] = useState(false);
+  const [qrVehicle, setQrVehicle] = useState<Vehicle | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const { updateStatus } = useUpdateVehicleStatus();
+  const { deleteAssignment } = useDeleteAssignment();
 
   const { user } = useUser();
   const { search } = useSearch();
-  const VITE_API_URL = import.meta.env.VITE_API_URL;
-  const isPrivileged = ["CEO", "Developer"].includes(user?.position || "");
 
-  const canApprove = ["CEO", "Developer", "President"].includes(
-    user?.position || ""
-  );
-  const canGenerateQR = ["CEO", "Developer", "President", "Member"].includes(
-    user?.position || ""
-  );
-  const canDeleteQR = ["CEO", "Developer", "President"].includes(
-    user?.position || ""
-  );
-  const canViewAllOrgs = ["CEO", "Developer"].includes(user?.position || "");
+  const {
+    isPrivileged,
+    canApprove,
+    canGenerateQR,
+    canDeleteQR,
+    canViewAllOrgs,
+    canViewQR,
+  } = useRolePermissions(user?.position);
 
   useEffect(() => {
     if (user && !isPrivileged) {
       setOrganizationIdFilter(user.organization_id);
     }
-  }, [user]);
+  }, [user, isPrivileged]);
 
-  useEffect(() => {
-    if (organizationIdFilter || isPrivileged) {
-      fetchVehicles();
-    }
-  }, [organizationIdFilter, isPrivileged]);
+  const {
+    vehicles,
+    assignments,
+    loading: vehiclesLoading,
+    refetch,
+  } = useVehicles(organizationIdFilter, isPrivileged);
+  const { organizations, loading: orgLoading } = useOrganizations();
 
-  useEffect(() => {
-    fetchOrganizations();
-  }, []);
+  const loading = vehiclesLoading || orgLoading;
 
-  const fetchVehicles = async () => {
-    try {
-      const res = await fetch(`${VITE_API_URL}/api/vehicles`);
-      if (!res.ok) throw new Error("Failed to fetch vehicles");
-      const data: Vehicle[] = await res.json();
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter((vehicle) => {
+      const matchesStatus = statusFilter
+        ? vehicle.status.toLowerCase() === statusFilter.toLowerCase()
+        : true;
 
-      const filteredByOrg =
-        isPrivileged || organizationIdFilter === ""
-          ? data
-          : data.filter(
-              (v: Vehicle) => v.organization_id === organizationIdFilter
-            );
+      const matchesOrg = organizationIdFilter
+        ? vehicle.organization_id === organizationIdFilter
+        : true;
 
-      setVehicles(filteredByOrg);
+      const matchesSearch =
+        vehicle.case_number.toLowerCase().includes(search.toLowerCase()) ||
+        vehicle.plate_number.toLowerCase().includes(search.toLowerCase()) ||
+        vehicle.vehicle_type.toLowerCase().includes(search.toLowerCase());
 
-      const session = await supabase.auth.getSession();
-      const token = session.data.session?.access_token;
-      if (!token) return;
-
-      const assignmentStatusEntries = await Promise.all(
-        filteredByOrg.map(async (vehicle) => {
-          const status = await fetchAssignmentStatus(
-            vehicle.id,
-            token,
-            VITE_API_URL
-          );
-          return [vehicle.id, status] as const;
-        })
-      );
-
-      setAssignments(Object.fromEntries(assignmentStatusEntries));
-    } catch (error) {
-      console.error("[VehicleTable] Failed to fetch vehicles:", error);
-      toast.error("Error loading vehicles");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchOrganizations = async () => {
-    try {
-      const res = await fetch(`${VITE_API_URL}/api/organizations`);
-      if (!res.ok) throw new Error("Failed to fetch organizations");
-      const data = await res.json();
-      setOrganizations(data);
-    } catch (error) {
-      console.error("Error fetching organizations", error);
-      toast.error("Error loading organizations");
-    }
-  };
-
-  const handleDeleteAssignment = async (vehicleId: number) => {
-    if (!confirm("Are you sure you want to delete this QR assignment?")) return;
-
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
-    if (!token) return toast.error("You must be logged in.");
-
-    try {
-      const res = await fetch(`${VITE_API_URL}/api/qrcode/${vehicleId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) throw new Error("Failed to delete assignment");
-
-      toast.success("QR assignment deleted.");
-      fetchVehicles();
-    } catch (error) {
-      console.error("Delete error:", error);
-      toast.error("Delete failed.");
-    }
-  };
-
-  const handleUpdateStatus = async (
-    vehicleId: number,
-    status: "Approved" | "Declined"
-  ) => {
-    if (!confirm(`Confirm to ${status.toLowerCase()} this vehicle?`)) return;
-
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
-    if (!token) return toast.error("Authentication required.");
-
-    try {
-      const res = await fetch(
-        `${VITE_API_URL}/api/vehicles/${vehicleId}/status`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status }),
-        }
-      );
-
-      if (!res.ok) throw new Error("Failed to update status");
-
-      toast.success(`Vehicle ${status.toLowerCase()} successfully.`);
-      fetchVehicles();
-    } catch (err) {
-      console.error("Status update failed:", err);
-      toast.error("Update failed");
-    }
-  };
-
-  const filteredVehicles = vehicles.filter((vehicle) => {
-    const matchesStatus = statusFilter
-      ? vehicle.status.toLowerCase() === statusFilter.toLowerCase()
-      : true;
-
-    const matchesOrganization = organizationIdFilter
-      ? vehicle.organization_id === organizationIdFilter
-      : true;
-
-    const matchesSearch =
-      vehicle.case_number.toLowerCase().includes(search.toLowerCase()) ||
-      vehicle.plate_number.toLowerCase().includes(search.toLowerCase()) ||
-      vehicle.vehicle_type.toLowerCase().includes(search.toLowerCase());
-
-    return matchesStatus && matchesOrganization && matchesSearch;
-  });
+      return matchesStatus && matchesOrg && matchesSearch;
+    });
+  }, [vehicles, statusFilter, organizationIdFilter, search]);
 
   const columns = [
     { label: "Case No", render: (v: Vehicle) => v.case_number },
@@ -239,7 +93,6 @@ export default function VehicleTable() {
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-500 underline text-xs"
-            title="View insurance"
           >
             View
           </a>
@@ -270,11 +123,7 @@ export default function VehicleTable() {
         const isApproved = v.status === "Approved";
         const isPending = v.status === "Pending";
 
-        const canViewQR =
-          hasQR &&
-          ["Driver", "Member", "President", "CEO", "Developer"].includes(
-            user?.position || ""
-          );
+        const canView = hasQR && canViewQR;
         const canGenerate = !hasQR && isApproved && canGenerateQR;
 
         return (
@@ -282,29 +131,47 @@ export default function VehicleTable() {
             {isPending && canApprove && (
               <>
                 <button
-                  onClick={() => handleUpdateStatus(v.id, "Approved")}
-                  className="bg-green-600 text-white text-xs px-3 py-1 rounded"
-                  title="Approve vehicle"
+                  onClick={async () => {
+                    if (
+                      !confirm("Are you sure you want to approve this vehicle?")
+                    )
+                      return;
+                    setActionLoading(`approve-${v.id}`);
+                    await updateStatus(v.id, "Approved");
+                    await refetch();
+                    setActionLoading(null);
+                  }}
+                  className="bg-green-600 text-white text-xs px-3 py-1 rounded flex items-center gap-1"
                 >
+                  {actionLoading === `approve-${v.id}` && <Spinner />}
                   Approve
                 </button>
+
                 <button
-                  onClick={() => handleUpdateStatus(v.id, "Declined")}
-                  className="bg-red-600 text-white text-xs px-3 py-1 rounded"
-                  title="Decline vehicle"
+                  onClick={async () => {
+                    if (
+                      !confirm("Are you sure you want to decline this vehicle?")
+                    )
+                      return;
+                    setActionLoading(`decline-${v.id}`);
+                    await updateStatus(v.id, "Declined");
+                    await refetch();
+                    setActionLoading(null);
+                  }}
+                  className="bg-red-600 text-white text-xs px-3 py-1 rounded flex items-center gap-1"
                 >
+                  {actionLoading === `decline-${v.id}` && <Spinner />}
                   Decline
                 </button>
               </>
             )}
 
-            {canViewQR && (
+            {canView && (
               <Link
                 to={`/vehicle/${v.id}`}
                 className="bg-blue-600 text-white text-xs px-3 py-1 rounded"
                 target="_blank"
                 rel="noopener noreferrer"
-                title="View QR"
               >
                 View
               </Link>
@@ -312,20 +179,31 @@ export default function VehicleTable() {
 
             {canGenerate && (
               <button
-                onClick={() => setQrVehicle(v)}
-                className="bg-blue-500 text-white text-xs px-3 py-1 rounded"
-                title="Generate QR"
+                onClick={async () => {
+                  if (!confirm("Generate a QR assignment?")) return;
+                  setActionLoading(`generate-${v.id}`);
+                  setQrVehicle(v);
+                  setActionLoading(null);
+                }}
+                className="bg-blue-600 text-white text-xs px-3 py-1 rounded flex items-center gap-1"
               >
+                {actionLoading === `generate-${v.id}` && <Spinner />}
                 Generate QR
               </button>
             )}
 
             {hasQR && canDeleteQR && (
               <button
-                onClick={() => handleDeleteAssignment(v.id)}
-                className="bg-red-600 text-white text-xs px-3 py-1 rounded"
-                title="Delete QR"
+                onClick={async () => {
+                  if (!confirm("Delete this QR assignment?")) return;
+                  setActionLoading(`delete-${v.id}`);
+                  await deleteAssignment(v.id);
+                  await refetch();
+                  setActionLoading(null);
+                }}
+                className="bg-red-600 text-white text-xs px-3 py-1 rounded flex items-center gap-1"
               >
+                {actionLoading === `delete-${v.id}` && <Spinner />}
                 Delete
               </button>
             )}
@@ -427,6 +305,10 @@ export default function VehicleTable() {
             <GenerateQR
               vehicleId={qrVehicle.id}
               onClose={() => setQrVehicle(null)}
+              onSuccess={async () => {
+                await refetch(); // ✅ just refetch, no reload
+                setQrVehicle(null); // ✅ close modal after success
+              }}
             />
           </div>
         </div>
