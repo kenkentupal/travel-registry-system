@@ -27,6 +27,12 @@ export default function SignUpForm() {
   const [showConfirmationMessage, setShowConfirmationMessage] = useState(false);
   const [theme, setTheme] = useState("light");
 
+  // New state for resend email functionality
+  const [isWaitingForEmail, setIsWaitingForEmail] = useState(false);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [resendMessage, setResendMessage] = useState("");
+  const [resendCountdown, setResendCountdown] = useState(0);
+
   useEffect(() => {
     // ✅ Restore session from email confirmation (from access_token in URL)
     const accessToken = searchParams.get("access_token");
@@ -84,6 +90,19 @@ export default function SignUpForm() {
     checkInvite();
   }, [inviteCode, searchParams]);
 
+  // Countdown timer for resend email
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (resendCountdown > 0) {
+      interval = setInterval(() => {
+        setResendCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [resendCountdown]);
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     const { email, password, fname, lname } = formData;
@@ -112,7 +131,34 @@ export default function SignUpForm() {
       .update({ accepted: true })
       .eq("invite_code", inviteCode);
 
-    alert("Check your email to confirm your account.");
+    setIsWaitingForEmail(true);
+    setResendCountdown(60); // Start 60-second countdown
+    setResendMessage("Check your email to confirm your account.");
+  };
+
+  const handleResendEmail = async () => {
+    if (resendCountdown > 0) return;
+
+    setIsResendingEmail(true);
+    setResendMessage("");
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: formData.email,
+      });
+
+      if (error) {
+        setResendMessage("Failed to resend email: " + error.message);
+      } else {
+        setResendMessage("Confirmation email sent successfully!");
+        setResendCountdown(60); // Reset countdown
+      }
+    } catch (error) {
+      setResendMessage("Failed to resend email. Please try again.");
+    } finally {
+      setIsResendingEmail(false);
+    }
   };
 
   const handleLogout = () => {
@@ -196,6 +242,43 @@ export default function SignUpForm() {
             </div>
           )}
 
+          {isWaitingForEmail && (
+            <div className="bg-yellow-100 dark:bg-yellow-900 p-4 rounded-md mb-6 text-center text-yellow-800 dark:text-yellow-200">
+              <p className="font-medium mb-2">{resendMessage}</p>
+              {resendCountdown > 0 && (
+                <p className="text-sm mb-2">
+                  You can resend the confirmation email in {resendCountdown}{" "}
+                  seconds
+                </p>
+              )}
+              <div className="flex flex-col items-center gap-2">
+                {isResendingEmail ? (
+                  <p className="text-sm">Resending confirmation email...</p>
+                ) : (
+                  <button
+                    onClick={handleResendEmail}
+                    disabled={resendCountdown > 0 || isResendingEmail}
+                    className={`text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 ${
+                      resendCountdown > 0
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:underline"
+                    }`}
+                  >
+                    {resendCountdown > 0
+                      ? `Resend Email (${resendCountdown}s)`
+                      : "Resend Confirmation Email"}
+                  </button>
+                )}
+                <Link
+                  to="/login"
+                  className="text-sm text-gray-600 dark:text-gray-400 hover:underline"
+                >
+                  Already confirmed? Sign in here
+                </Link>
+              </div>
+            </div>
+          )}
+
           <Link
             to="/"
             className="text-gray-500 hover:text-gray-700 text-sm mb-4 inline-block"
@@ -211,78 +294,80 @@ export default function SignUpForm() {
             Create an account with your invite link.
           </p>
 
-          <form onSubmit={handleSignUp} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          {!isWaitingForEmail && (
+            <form onSubmit={handleSignUp} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>First Name</Label>
+                  <Input
+                    type="text"
+                    placeholder="Juan"
+                    value={formData.fname}
+                    onChange={(e) =>
+                      setFormData({ ...formData, fname: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>Last Name</Label>
+                  <Input
+                    type="text"
+                    placeholder="Dela Cruz"
+                    value={formData.lname}
+                    onChange={(e) =>
+                      setFormData({ ...formData, lname: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
               <div>
-                <Label>First Name</Label>
+                <Label>Email</Label>
                 <Input
-                  type="text"
-                  placeholder="Juan"
-                  value={formData.fname}
-                  onChange={(e) =>
-                    setFormData({ ...formData, fname: e.target.value })
-                  }
+                  type="email"
+                  disabled
+                  value={formData.email}
+                  placeholder="example@email.com"
                 />
               </div>
+
               <div>
-                <Label>Last Name</Label>
-                <Input
-                  type="text"
-                  placeholder="Dela Cruz"
-                  value={formData.lname}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lname: e.target.value })
-                  }
-                />
+                <Label>Password</Label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    placeholder="Create a secure password"
+                  />
+                  <span
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
+                  >
+                    {showPassword ? <EyeIcon /> : <EyeCloseIcon />}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <Label>Email</Label>
-              <Input
-                type="email"
-                disabled
-                value={formData.email}
-                placeholder="example@email.com"
-              />
-            </div>
-
-            <div>
-              <Label>Password</Label>
-              <div className="relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  placeholder="Create a secure password"
-                />
-                <span
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"
-                >
-                  {showPassword ? <EyeIcon /> : <EyeCloseIcon />}
+              <div className="flex items-start gap-3">
+                <Checkbox checked={isChecked} onChange={setIsChecked} />
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  By signing up, you agree to our <strong>Terms</strong> and{" "}
+                  <strong>Privacy Policy</strong>.
                 </span>
               </div>
-            </div>
 
-            <div className="flex items-start gap-3">
-              <Checkbox checked={isChecked} onChange={setIsChecked} />
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                By signing up, you agree to our <strong>Terms</strong> and{" "}
-                <strong>Privacy Policy</strong>.
-              </span>
-            </div>
-
-            <button
-              type="submit"
-              disabled={!isChecked || !inviteValid}
-              className="w-full bg-blue-600 text-white font-medium py-2 rounded hover:bg-blue-700 transition"
-            >
-              Create Account
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={!isChecked || !inviteValid}
+                className="w-full bg-blue-600 text-white font-medium py-2 rounded hover:bg-blue-700 transition"
+              >
+                Create Account
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

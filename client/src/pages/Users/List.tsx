@@ -64,6 +64,7 @@ export default function List() {
           Authorization: `Bearer ${session?.access_token}`,
         },
       });
+      
 
       if (!res.ok) throw new Error("Failed to fetch organizations");
       const data = await res.json();

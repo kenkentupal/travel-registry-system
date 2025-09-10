@@ -13,7 +13,7 @@ import qrRoutes from "./routes/qrRoutes.js";
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT;
 
 app.use(cors());
 app.use(express.json());
@@ -27,7 +27,6 @@ app.use("/api/qrcode", qrRoutes);
 
 app.get("/", (req, res) => res.send("API is running"));
 
-// 👇 Prevent double listen when testing
 if (process.env.NODE_ENV !== "test") {
   app.listen(port, () => console.log(`Server running on port ${port}`));
 }
